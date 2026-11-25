@@ -9,6 +9,11 @@
 </p>
 
 <p align="center">
+  <strong>🌐 Try it online — no install:</strong><br />
+  <a href="https://abhishek6966.github.io/Youtube-Transcribe-Downloader/">https://abhishek6966.github.io/Youtube-Transcribe-Downloader/</a>
+</p>
+
+<p align="center">
   <a href="#quick-start"><img src="https://img.shields.io/badge/Quick%20Start-2%20steps-8B5CF6?style=for-the-badge" alt="Quick Start: 2 steps" /></a>
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-1F2937?style=for-the-badge" alt="Platform: Windows, macOS, Linux" />
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" />
@@ -51,6 +56,8 @@ It was built for one simple frustration: other tools are slow, and they get song
 1. Push this folder to a new GitHub repo.
 2. Repo → **Settings → Pages → Build and deployment → Deploy from a branch** → branch `main`, folder `/ (root)` → **Save**.
 3. Your site is live at `https://<your-name>.github.io/<repo-name>/` — anyone can open it, paste their own API key, and use it. No install, no terminal, nothing for them to download.
+
+Live site: **https://abhishek6966.github.io/Youtube-Transcribe-Downloader/**
 
 ### The free helper — one-time setup, so YouTube links work online
 

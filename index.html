@@ -189,9 +189,39 @@
         margin-top:22px;width:min(100%,430px);text-align:left;
         background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:16px 18px;
       }
-      .demo-row{display:flex;align-items:center;gap:12px;padding:6px 0}
-      .demo-row .ts{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--red);font-weight:500;flex:none}
-      .demo-row .bar{height:9px;border-radius:99px;background:var(--surface-2);border:1px solid var(--line)}
+      /* Animated landing demo: a link is pasted, the words land second
+         by second, then the two files come out. Pure theatre (the card
+         is aria-hidden); the small driver at the end of the page runs
+         the loop by toggling the .on / .working classes. */
+      .demo-url{display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1.5px solid var(--line);border-radius:10px;padding:7px 8px 7px 10px;transition:border-color .3s ease,box-shadow .3s ease}
+      .demo-anim.working .demo-url{border-color:var(--red);box-shadow:0 0 0 4px var(--red-soft)}
+      .demo-play{width:26px;height:19px;min-height:19px;border-radius:6px;background:var(--red);display:flex;align-items:center;justify-content:center;flex:none}
+      .demo-play svg{width:11px;height:11px;fill:#fff}
+      .demo-link{flex:1;min-width:0;font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;display:flex;align-items:center;min-height:19px}
+      .demo-caret{width:2px;height:15px;background:var(--red);flex:none;margin-left:1px;animation:demoBlink 1s steps(1) infinite}
+      @keyframes demoBlink{0%,55%{opacity:1}56%,100%{opacity:0}}
+      .demo-get{flex:none;font-size:11.5px;font-weight:800;color:#fff;background:var(--red);border-radius:7px;padding:5px 11px;line-height:1.3;transition:transform .18s ease,background .18s ease}
+      .demo-get.hit{transform:scale(1.14);background:var(--red-dark)}
+      .demo-progress{height:4px;border-radius:99px;background:var(--surface-2);margin-top:11px;overflow:hidden}
+      .demo-progress i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--red),#f08c00,var(--green))}
+      .demo-anim.working .demo-progress i{width:100%;transition:width 2.9s cubic-bezier(.3,.6,.3,1)}
+      .demo-lines{margin-top:11px;display:flex;flex-direction:column;gap:7px}
+      .demo-line{display:flex;align-items:center;gap:10px;opacity:0;transform:translateY(7px);transition:opacity .35s ease,transform .35s cubic-bezier(.2,.8,.3,1.2)}
+      .demo-line.on{opacity:1;transform:none}
+      .demo-line .ts{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--red);font-weight:500;flex:none}
+      .demo-line .words{display:flex;gap:5px;flex:1;min-width:0}
+      .demo-line .words i{height:9px;flex:none;border-radius:99px;background:var(--surface-2);border:1px solid var(--line);opacity:0;transform:scale(.4);transition:opacity .22s ease,transform .22s cubic-bezier(.2,.9,.3,1.4)}
+      .demo-line.on .words i{opacity:1;transform:scale(1);transition-delay:calc(var(--i)*85ms)}
+      .demo-files{display:flex;gap:9px;margin-top:13px}
+      .demo-file{flex:1;min-width:0;display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:8px 10px;opacity:0;transform:translateY(12px) scale(.95);transition:opacity .4s ease,transform .45s cubic-bezier(.2,.9,.3,1.25)}
+      .demo-file.on{opacity:1;transform:none}
+      .demo-file .doc{width:21px;height:26px;flex:none;color:var(--ink-3)}
+      .demo-file .fmeta{flex:1;min-width:0}
+      .demo-file .fname{display:block;font-size:12px;font-weight:800;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .demo-file .fbar{display:block;height:6px;border-radius:99px;background:var(--surface);border:1px solid var(--line);margin-top:4px}
+      .demo-file .check{width:19px;height:19px;min-height:19px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;flex:none;transform:scale(0);transition:transform .3s cubic-bezier(.2,.9,.3,1.6) .18s}
+      .demo-file.on .check{transform:scale(1)}
+      .demo-file .check svg{width:11px;height:11px}
       .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:20px}
       .chips span{font-size:13px;font-weight:700;color:var(--ink-2);background:var(--surface);border:1px solid var(--line);padding:7px 12px;border-radius:999px}
       .btn-start{margin-top:24px;min-width:min(280px,100%);min-height:58px;font-size:17px;border-radius:12px}
@@ -330,6 +360,8 @@
         .eq span{animation:none;transform:scaleY(.7)}
         .proc-bar{animation:none;left:0;width:100%;opacity:.45}
         .bg-row{animation:none}
+        .demo-caret{animation:none}
+        .demo-line,.demo-line .words i,.demo-file,.demo-file .check,.demo-progress i,.demo-get,.demo-url{transition:none}
       }
 
       /* ---------- Info modal ---------- */
@@ -393,6 +425,7 @@
         .way-card p{display:none}
         .chips{display:none}
         .demo-card{margin-top:16px;padding:12px 14px}
+        .demo-file .fname{white-space:normal}
         .btn-start{margin-top:18px}
       }
       @media (max-height:720px){
@@ -443,9 +476,31 @@
               <p class="file-banner-note">If that address doesn&rsquo;t open, go to the pack folder first and double-click <b>start_html.bat</b>, then tap the button again.</p>
             </div>
             <div class="demo-card" aria-hidden="true">
-              <div class="demo-row"><span class="ts">[00:01]</span><span class="bar" style="width:62%"></span></div>
-              <div class="demo-row"><span class="ts">[00:02]</span><span class="bar" style="width:84%"></span></div>
-              <div class="demo-row"><span class="ts">[00:03]</span><span class="bar" style="width:47%"></span></div>
+              <div class="demo-anim" id="demo-anim">
+                <div class="demo-url">
+                  <span class="demo-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>
+                  <span class="demo-link"><span id="demo-link-text"></span><span class="demo-caret"></span></span>
+                  <span class="demo-get" id="demo-get">Get</span>
+                </div>
+                <div class="demo-progress"><i></i></div>
+                <div class="demo-lines">
+                  <div class="demo-line"><span class="ts">[00:01]</span><span class="words"><i style="width:14%;--i:0"></i><i style="width:20%;--i:1"></i><i style="width:11%;--i:2"></i><i style="width:24%;--i:3"></i><i style="width:15%;--i:4"></i></span></div>
+                  <div class="demo-line"><span class="ts">[00:02]</span><span class="words"><i style="width:22%;--i:0"></i><i style="width:12%;--i:1"></i><i style="width:18%;--i:2"></i><i style="width:10%;--i:3"></i><i style="width:21%;--i:4"></i></span></div>
+                  <div class="demo-line"><span class="ts">[00:03]</span><span class="words"><i style="width:12%;--i:0"></i><i style="width:19%;--i:1"></i><i style="width:24%;--i:2"></i><i style="width:14%;--i:3"></i></span></div>
+                </div>
+                <div class="demo-files">
+                  <div class="demo-file">
+                    <svg class="doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M6 2.5h8L19 7.5v14H6z"/><path d="M13.5 2.5v5.5H19"/></svg>
+                    <span class="fmeta"><span class="fname">Original language</span><span class="fbar" style="width:82%"></span></span>
+                    <span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5 10 18 19.5 6.5"/></svg></span>
+                  </div>
+                  <div class="demo-file">
+                    <svg class="doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M6 2.5h8L19 7.5v14H6z"/><path d="M13.5 2.5v5.5H19"/></svg>
+                    <span class="fmeta"><span class="fname">English letters</span><span class="fbar" style="width:64%"></span></span>
+                    <span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5 10 18 19.5 6.5"/></svg></span>
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="chips">
               <span>Original language</span><span>English letters</span><span>Second by second</span><span>Any video</span>
@@ -2993,6 +3048,52 @@ HONEST LIMITS
           refreshContinue();
         }
         $("start-btn").addEventListener("click", function(){ show(2); });
+        /* Landing demo loop: a link is typed in, the words land second
+           by second, then the two files come out - over and over. Pure
+           theatre (the card is aria-hidden). It only runs while Step 1
+           is on screen; under reduced motion it shows the finished
+           state once and stays still. */
+        (function demoLoop(){
+          var anim=$("demo-anim"); if(!anim) return;
+          var linkEl=$("demo-link-text"), getEl=$("demo-get");
+          var lines=anim.querySelectorAll(".demo-line");
+          var files=anim.querySelectorAll(".demo-file");
+          var LINK="youtube.com/watch?v=\u2026";
+          var timers=[];
+          function later(fn,ms){ timers.push(setTimeout(fn,ms)); }
+          function setAll(on){
+            anim.classList.toggle("working", on);
+            Array.prototype.forEach.call(lines, function(l){ l.classList.toggle("on", on); });
+            Array.prototype.forEach.call(files, function(f){ f.classList.toggle("on", on); });
+          }
+          if(window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+            linkEl.textContent=LINK; setAll(true); return;
+          }
+          function cycle(){
+            timers.forEach(clearTimeout); timers=[];
+            if(!$("screen-1").classList.contains("active") || document.hidden){ later(cycle, 1200); return; }
+            setAll(false); getEl.classList.remove("hit"); linkEl.textContent="";
+            var i=0;
+            var typer=setInterval(function(){
+              i++; linkEl.textContent=LINK.slice(0,i);
+              if(i>=LINK.length) clearInterval(typer);
+            }, 52);
+            timers.push(typer);
+            var typedAt=LINK.length*52;
+            later(function(){ getEl.classList.add("hit"); }, typedAt+260);
+            later(function(){ getEl.classList.remove("hit"); anim.classList.add("working"); }, typedAt+480);
+            var base=typedAt+620;
+            Array.prototype.forEach.call(lines, function(l, idx){
+              later(function(){ l.classList.add("on"); }, base+idx*780);
+            });
+            var fbase=base+lines.length*780+250;
+            Array.prototype.forEach.call(files, function(f, idx){
+              later(function(){ f.classList.add("on"); }, fbase+idx*330);
+            });
+            later(cycle, fbase+files.length*330+2600);
+          }
+          cycle();
+        })();
         $("back-1").addEventListener("click", function(){ show(1); });
         $("back-2").addEventListener("click", function(){ show(2); });
         $("way1-card").addEventListener("click", function(){ selectWay("way1"); });
