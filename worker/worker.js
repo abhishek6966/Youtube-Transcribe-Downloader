@@ -107,7 +107,23 @@ async function forwardToWhisper(provider, key, audio, filename, model, lang) {
   return json({ ok: true, provider, ...data });
 }
 
-// Any YouTube video's audio, transcribed online.
+// The YouTube player API needs an API key, but we NEVER hard-code one
+// in this repo — GitGuardian / GitHub push protection rightly flag any
+// key-shaped string in code. Instead, fetch YouTube's own public web
+// key from its homepage at runtime (the same key YouTube's own website
+// ships to every visitor) and cache it for this worker instance.
+let _innertubeKey = null;
+async function innertubeKey() {
+  if (_innertubeKey) return _innertubeKey;
+  const home = await fetch("https://www.youtube.com/", {
+    headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36" },
+  });
+  const html = await home.text();
+  const m = html.match(/"INNERTUBE_API_KEY":"([^"]+)"/);
+  if (!m) throw new Error("Could not read YouTube's player key.");
+  _innertubeKey = m[1];
+  return _innertubeKey;
+}
 // A web page cannot pull audio out of YouTube — YouTube blocks it.
 // A server CAN ask YouTube's own player API (the Android client) for the
 // audio stream, download it, and send it to the provider's Whisper.
@@ -132,7 +148,7 @@ async function transcribeLink(request) {
 
   // Ask YouTube's player API (Android client) for this video's streams.
   const player = await fetch(
-    "https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8&prettyPrint=false",
+    "`https://www.youtube.com/youtubei/v1/player?key=${encodeURIComponent(key)}&prettyPrint=false`",
     {
       method: "POST",
       headers: {

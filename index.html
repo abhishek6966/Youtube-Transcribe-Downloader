@@ -1410,13 +1410,33 @@ HONEST LIMITS
         /* ---------- video details: title, channel, length, views ----------
            The preview card used to depend on one single address for the
            title - when that one call failed, the card showed nothing but
-           "Your video". Now three independent sources are tried in
-           order: YouTube's own embed details, the noembed mirror of the
-           same details, and a public Invidious mirror (the only one
-           that also gives the length and view count). Whichever answers
-           fills the card, and the player-API caption route below fills
-           in anything still missing when the transcript is fetched. */
-        var INVIDIOUS_HOSTS=["https://inv.nadeko.net","https://invidious.nerdvpn.de","https://yt.cdaut.de"];
+           "Your video". Now three independent sources are asked AT THE
+           SAME TIME - YouTube's own embed details, the noembed mirror
+           of the same details, and public Invidious mirrors (the only
+           ones that also give the length and view count) - and the
+           first good answer fills the card. Asking in parallel is the
+           fix for the old failure: the sources used to be tried one
+           after another, so one dead or hanging address (two of the
+           three Invidious addresses named here had shut down entirely)
+           stalled or sank the whole lookup even when the others were
+           fine. */
+        var INVIDIOUS_HOSTS=["https://inv.nadeko.net","https://invidious.0011.lt","https://invidious.fdn.fr","https://invidious.privacyredirect.com"];
+        /* Race several promise factories: the first success wins, and
+           the race only fails when every single one has failed. */
+        function firstSuccess(factories){
+          return new Promise(function(resolve, reject){
+            var pending=factories.length, lastErr=null, done=false;
+            if(!pending){ reject(new Error("unreachable")); return; }
+            factories.forEach(function(f){
+              Promise.resolve().then(f).then(function(v){
+                if(!done){ done=true; resolve(v); }
+              }, function(e){
+                lastErr=e; pending--;
+                if(!pending && !done) reject(lastErr||new Error("unreachable"));
+              });
+            });
+          });
+        }
         function renderFacts(){
           var parts=[];
           if(state.lengthSec) parts.push("Length "+fmtSec(state.lengthSec));
@@ -1453,20 +1473,20 @@ HONEST LIMITS
             .then(function(d){ if(!d || d.error || !d.title) throw 0; return { title:d.title||"", author:d.author_name||"", authorUrl:d.author_url||"" }; });
         }
         function metaFromInvidious(id){
-          var chain=Promise.reject(new Error("start"));
-          INVIDIOUS_HOSTS.forEach(function(base){
-            chain=chain.catch(function(){
+          return firstSuccess(INVIDIOUS_HOSTS.map(function(base){
+            return function(){
               return withTimeout(fetch(base+"/api/v1/videos/"+id), 10000)
                 .then(function(r){ if(!r.ok) throw 0; return r.json(); })
                 .then(function(d){ if(!d || !d.title) throw 0; return { title:d.title||"", author:d.author||"", authorUrl:d.authorUrl? ("https://www.youtube.com"+d.authorUrl) : "", lengthSec:+d.lengthSeconds||0, views:(d.viewCount!=null? d.viewCount : null) }; });
-            });
-          });
-          return chain;
+            };
+          }));
         }
         function loadVideoDetails(id){
-          metaFromOembed(id)
-            .catch(function(){ return metaFromNoembed(id); })
-            .catch(function(){ return metaFromInvidious(id); })
+          firstSuccess([
+            function(){ return metaFromOembed(id); },
+            function(){ return metaFromNoembed(id); },
+            function(){ return metaFromInvidious(id); }
+          ])
             .then(function(m){
               applyMeta(m);
               /* Length and views only come from the mirror - fetch them
@@ -1572,9 +1592,9 @@ HONEST LIMITS
           if(WORKER_URL && ai.connected && ai.audioModel && ai.provider && ai.provider.type==="openai"){
             el.textContent="Link route is on: your worker fetches the sound and "+ai.provider.name+" writes the words.";
           }else if(WORKER_URL){
-            el.textContent="Worker is set - connect a Groq or OpenAI key in Step 2 to transcribe links from their sound. Until then, captions come first.";
+            el.textContent="Worker is set - captions come through your worker first. Connect a Groq or OpenAI key in Step 2 and it can also transcribe links from their sound.";
           }else{
-            el.textContent="No online helper set, so the order is: captions first (public caption servers, then YouTube), then the listening panel, then the computer pack. Add the helper address on Step 2 to transcribe any link fully online.";
+            el.textContent="No online helper set, so the order is: captions first (public caption servers asked together, with YouTube's old caption address as a last try), then the listening panel, then the computer pack. Add the helper address on Step 2 to transcribe any link fully online.";
           }
         }
         var apiStatusEl=$("api-status");
@@ -1593,8 +1613,7 @@ HONEST LIMITS
           { id:"xai", name:"xAI (Grok)", type:"openai", base:"https://api.x.ai/v1",
             match:function(k){ return k.indexOf("xai-")===0; } },
           { id:"perplexity", name:"Perplexity", type:"openai", base:"https://api.perplexity.ai",
-            match:function(k){ return k.indexOf("pplx-")===0; },
-            knownModels:["sonar","sonar-pro","sonar-reasoning","sonar-reasoning-pro","sonar-deep-research"] },
+            match:function(k){ return k.indexOf("pplx-")===0; } },
           { id:"fireworks", name:"Fireworks AI", type:"openai", base:"https://api.fireworks.ai/inference/v1",
             match:function(k){ return k.indexOf("fw_")===0; } },
           { id:"cerebras", name:"Cerebras", type:"openai", base:"https://api.cerebras.cloud/v1",
@@ -1615,26 +1634,6 @@ HONEST LIMITS
                and a key is only ever sent to the provider it belongs to. */
             match:function(k){ return k.indexOf("sk-")===0 && k.indexOf("sk-ant-")!==0 && k.indexOf("sk-or-")!==0 && !/^sk-[0-9a-f]{32}$/i.test(k); } }
         ];
-        /* Fallback model lists, used ONLY when a provider's live model list
-           cannot be fetched (no network, a blocked call, a timeout) - the
-           live list always wins when it answers, so a model the provider
-           has removed never appears from there. If a fallback model turns
-           out to be gone, aiChat and the listening flow step down to the
-           next one automatically, so a dead model never blocks anything. */
-        var FALLBACK_MODELS={
-          groq:["whisper-large-v3-turbo","whisper-large-v3","llama-3.3-70b-versatile","openai/gpt-oss-120b","openai/gpt-oss-20b","qwen/qwen3-32b","meta-llama/llama-4-scout-17b-16e-instruct","llama-3.1-8b-instant"],
-          openai:["gpt-4o-mini-transcribe","gpt-4o-transcribe","whisper-1","gpt-5","gpt-5-mini","gpt-4o","gpt-4o-mini"],
-          gemini:["gemini-2.5-flash","gemini-2.5-pro","gemini-2.0-flash"],
-          anthropic:["claude-sonnet-4-5","claude-opus-4-5","claude-haiku-4-5"],
-          openrouter:["openai/gpt-4o","anthropic/claude-sonnet-4.5","google/gemini-2.5-flash","deepseek/deepseek-chat","meta-llama/llama-3.3-70b-instruct"],
-          deepseek:["deepseek-chat","deepseek-reasoner"],
-          nvidia:["meta/llama-3.3-70b-instruct","meta/llama-3.1-405b-instruct","nvidia/llama-3.1-nemotron-70b-instruct"],
-          xai:["grok-4","grok-4-fast","grok-3"],
-          fireworks:["accounts/fireworks/models/llama-v3p3-70b-instruct","accounts/fireworks/models/qwen3-32b"],
-          cerebras:["llama-3.3-70b","gpt-oss-120b","qwen-3-32b"],
-          huggingface:["meta-llama/Llama-3.3-70B-Instruct","Qwen/Qwen3-32B","openai/gpt-oss-120b"],
-          zhipu:["glm-4.5","glm-4-flash"]
-        };
         /* Providers whose keys carry no unique mark of their own (Mistral,
            Together, Cohere and many more) are not guessed at - guessing
            would mean sending the key to a company it may not belong to.
@@ -1648,10 +1647,8 @@ HONEST LIMITS
         /* The model list ALWAYS comes live from the provider, fetched fresh
            on every connect - never from a list baked into this page. A model
            the provider has removed or decommissioned is not in its live
-           list, so it can never be shown here or picked. The one exception:
-           a provider with no working list endpoint falls back to its
-           knownModels, and even then a model that fails when called is
-           skipped automatically (see aiChat and the listening fallback). */
+           list, so it can never be shown here or picked. If the live list
+           does not answer, no model is offered at all. */
         function fetchModelsFor(p, key){
           var live;
           if(p.type==="gemini"){
@@ -1672,19 +1669,7 @@ HONEST LIMITS
           }
           return live.then(function(models){
             if(models.length) return models;
-            var fb=p.knownModels||FALLBACK_MODELS[p.id];
-            if(fb) return fb.slice();
-            return models;
-          }).catch(function(err){
-            /* A 401 or 403 means the provider read the key and refused it -
-               that is a real answer, so it is passed up, not papered over.
-               Anything else (no network, a blocked call, a timeout) falls
-               back to the provider's current list above, so the key still
-               connects and works from this page. */
-            if(err && /^http (401|403)$/.test(err.message||"")) throw err;
-            var fb=p.knownModels||FALLBACK_MODELS[p.id];
-            if(fb) return fb.slice();
-            throw err;
+            throw new Error("empty models");
           });
         }
         function isNotChat(id){
@@ -1841,7 +1826,7 @@ HONEST LIMITS
             if(i>=chain.length){
               connectInFlight=false;
               showRetry(true);
-              setStatus(apiStatusEl,"err","We couldn&rsquo;t check that key just now. Check your internet connection, then tap Try again &mdash; or paste the key again and it checks itself.");
+              setStatus(apiStatusEl,"err","Could not fetch the models. Please try again.");
               return;
             }
             fetchModelsFor(chain[i], key).then(function(models){
@@ -2356,38 +2341,33 @@ HONEST LIMITS
         }
 
         /* ---------- captions: every route a page can try ----------
-           YouTube retired the unsigned caption list this page used to
-           call - it now answers with an empty page for every video,
-           which is why "Get the transcript" failed even for videos
-           that do have captions, and why the message wrongly blamed
-           the internet. The routes below replace it, tried in order:
-           1. Public Invidious servers FIRST - they serve the same
-              caption tracks as subtitle files and are built to let
-              other pages read them, so this is the route most likely
-              to work from a web page.
-           2. YouTube's own player API - the one the YouTube apps use.
-              It returns the video's real caption tracks, each with a
-              signed link this page is allowed to read.
+           Why "Get the transcript" used to fail for every video: the
+           routes were broken one by one. YouTube retired the unsigned
+           caption list (it now answers with an empty page for every
+           video, which is why the message wrongly blamed the
+           internet). The public mirrors named in this page had mostly
+           shut down - and were tried one slow timeout after another,
+           so a single dead mirror stalled the whole lookup. And the
+           one route that still reached YouTube called its player API
+           with a key hard-coded in this page; that key leaked into a
+           public repo scan, so the route is gone for good. The routes
+           below replace all of that, tried in order:
+           1. The online helper (worker), when its address is set on
+              Step 2: GET /api/captions. It fetches the captions on
+              the server and reads YouTube's public player key from
+              YouTube's homepage at runtime - no key of any kind
+              lives in this page. Strongest route, and the only one
+              fully under our control.
+           2. Public Invidious servers, all asked AT THE SAME TIME -
+              they serve the same caption tracks as subtitle files
+              and are built to let other pages read them. Racing them
+              means one dead or hanging mirror can no longer stall
+              or sink the lookup.
            3. The old caption list address, kept as a last try.
-           Honest limit: no route lets a page alone promise captions -
-           YouTube can block any of them, which is why the worker
-           (online helper) route stays the strongest path when set up:
-           it fetches the sound server-side instead of asking YouTube
-           for captions at all.
            A route that answers "this video has no captions" is
            believed; a route that cannot be reached is skipped for
            the next one. Only when every route is blocked does the
            page say so - plainly, without blaming the connection. */
-        function parseJson3Captions(text){
-          var d=JSON.parse(text), out=[];
-          (d.events||[]).forEach(function(ev){
-            if(!ev.segs) return;
-            var txt=ev.segs.map(function(s){ return s.utf8||""; }).join("").replace(/\s+/g," ").trim();
-            if(!txt) return;
-            out.push({ start:(ev.tStartMs||0)/1000, dur:Math.max(0.5,(ev.dDurationMs||2000)/1000), text:txt });
-          });
-          return out;
-        }
         function chooseTrack(tracks, lang){
           /* Auto, done properly: the auto-captions (asr) track is
              written in the language actually spoken, so its language
@@ -2419,27 +2399,58 @@ HONEST LIMITS
             return { entries:entries, track:c.track };
           });
         }
-        function captionsViaPlayer(id, lang){
-          var body={ context:{ client:{ clientName:"ANDROID", clientVersion:"19.09.37", androidSdkVersion:30, hl:"en", gl:"US" } }, videoId:id, contentCheckOk:true, racyCheckOk:true };
-          return withTimeout(fetch("https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8", {
-            method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(body)
-          }), 15000).then(function(r){ if(!r.ok) throw new Error("http "+r.status); return r.json(); }).then(function(d){
-            var det=d.videoDetails||{};
-            if(det.title) applyMeta({ title:det.title, author:det.author||"", lengthSec:+det.lengthSeconds||0, views:(det.viewCount!=null? det.viewCount : null) });
-            var list=(((d.captions||{}).playerCaptionsTracklistRenderer)||{}).captionTracks||[];
-            if(!list.length) throw new Error("notracks");
-            var tracks=list.map(function(t){ return { lang:t.languageCode||"", name:(t.name&&t.name.simpleText)||"", kind:t.kind||"", baseUrl:t.baseUrl||"" }; });
-            return fetchFromTracks(id, lang, tracks, function(track){
-              return fetchText(track.baseUrl+"&fmt=json3").then(parseJson3Captions);
-            });
+        function captionsViaWorker(id, lang){
+          /* The online helper fetches the captions on the server and
+             returns them as timed lines:
+               GET {worker}/api/captions?url=<watch link>&lang=<code>
+               -> { ok:true, language, kind, lines:[{start, text}] }
+               -> { ok:false, hasCaptions:false } when the video
+                  positively has no captions.
+             No provider key is needed for this route, and no YouTube
+             key of any kind lives in this page - the worker reads
+             YouTube's public player key from YouTube's homepage at
+             runtime, on the server, so there is no secret here to
+             leak. (An earlier version of this route called the
+             player API straight from the page with a hard-coded key;
+             that key was flagged in a public repo scan and the route
+             was removed for good.) */
+          var u=WORKER_URL.replace(/\/+$/,"")+"/api/captions?url="+encodeURIComponent("https://www.youtube.com/watch?v="+id)+(lang? "&lang="+encodeURIComponent(lang) : "");
+          return withTimeout(fetch(u), 30000).then(function(r){
+            return r.json().catch(function(){ throw new Error("badjson"); });
+          }).then(function(d){
+            if(!d || d.ok!==true){
+              if(d && d.hasCaptions===false) throw new Error("notracks");
+              throw new Error("workerfail");
+            }
+            var lines=d.lines||[];
+            var entries=[];
+            for(var i=0;i<lines.length;i++){
+              var txt=String(lines[i].text||"").replace(/\s+/g," ").trim();
+              if(!txt) continue;
+              var st=+lines[i].start||0;
+              var nx=(i+1<lines.length)? (+lines[i+1].start||st+2) : st+2;
+              entries.push({ start:st, dur:Math.max(0.5, nx-st), text:txt });
+            }
+            if(!entries.length) throw new Error("notracks");
+            var track={ lang:d.language||lang||"", name:"", kind:(d.kind==="asr"?"asr":"") };
+            state.tracks=[track];
+            state.detectedLang=langNameFor(track.lang);
+            state.langNote="";
+            return { entries:entries, track:track };
           });
         }
         function captionsViaInvidious(id, lang){
-          var chain=Promise.reject(new Error("start"));
-          INVIDIOUS_HOSTS.forEach(function(base){
-            chain=chain.catch(function(prev){
-              if(prev && prev.message==="notracks") throw prev;
-              return withTimeout(fetch(base+"/api/v1/captions/"+id), 12000)
+          /* All mirrors are asked at once, not one after another: the
+             old one-by-one chain let a single dead or hanging mirror
+             stall the lookup for its full timeout before the next was
+             even tried. The first mirror that returns real caption
+             tracks wins. A mirror that answers "no tracks" settles
+             the question only when no mirror found tracks. */
+          return new Promise(function(resolve, reject){
+            var pending=INVIDIOUS_HOSTS.length, settled=false, sawNoTracks=false, lastErr=null;
+            if(!pending){ reject(new Error("unreachable")); return; }
+            INVIDIOUS_HOSTS.forEach(function(base){
+              withTimeout(fetch(base+"/api/v1/captions/"+id), 12000)
                 .then(function(r){ if(!r.ok) throw new Error("http "+r.status); return r.json(); })
                 .then(function(d){
                   var caps=(d&&d.captions)||[];
@@ -2448,10 +2459,15 @@ HONEST LIMITS
                   return fetchFromTracks(id, lang, tracks, function(track){
                     return withTimeout(fetch(track.url), 12000).then(function(r){ if(!r.ok) throw new Error("http "+r.status); return r.text(); }).then(parseSubtitleText);
                   });
+                })
+                .then(function(res){ if(!settled){ settled=true; resolve(res); } },
+                function(e){
+                  if(e && e.message==="notracks") sawNoTracks=true; else lastErr=e;
+                  pending--;
+                  if(!pending && !settled) reject(sawNoTracks? new Error("notracks") : (lastErr||new Error("unreachable")));
                 });
             });
           });
-          return chain;
         }
         function captionsViaLegacy(id, lang){
           return fetchText("https://www.youtube.com/api/timedtext?v="+id+"&type=list").then(function(xml){
@@ -2465,11 +2481,12 @@ HONEST LIMITS
         }
         function getCaptions(id, lang){
           var sawNoTracks=false;
-          return captionsViaInvidious(id, lang).catch(function(e){
-            if(e && e.message==="notracks") sawNoTracks=true;
-            return captionsViaPlayer(id, lang);
-          }).catch(function(e){
-            if(e && e.message==="notracks") sawNoTracks=true;
+          function note(e){ if(e && e.message==="notracks") sawNoTracks=true; }
+          var chain=WORKER_URL?
+            captionsViaWorker(id, lang).catch(function(e){ note(e); return captionsViaInvidious(id, lang); }) :
+            captionsViaInvidious(id, lang);
+          return chain.catch(function(e){
+            note(e);
             return captionsViaLegacy(id, lang);
           }).catch(function(e){
             if(sawNoTracks || (e && e.message==="notracks")) throw new Error("notracks");
