@@ -167,6 +167,141 @@ def romanize(text, lang):
 
 
 # ---------------------------------------------------------------------
+#  Sound-description cues — same lists as the web page and the MCP
+#  server. A transcript holds only the words that are sung or spoken;
+#  [music], (pause), [संगीत], [गाना गाने की आवाज़], [हांफने की आवाज़]
+#  and the rest are not words and are cleaned off at every step. A real
+#  sung line is never touched, even if it mentions music: only bracketed
+#  marks and cue-only lines are removed.
+# ---------------------------------------------------------------------
+CUE_WORDS = {
+    "music", "musica", "musik", "musique", "muzyka", "pauza", "eumak",
+    "sangeet", "sangeeta", "sangeeth", "sangit", "dhun", "dhuna", "taal",
+    "taaliyaan", "taaliyan", "hansee", "hansi", "viraama", "gaayana",
+    "vaadya", "myoosik", "myoosika", "gaanaa", "gaane", "aavaaza",
+    "haanphane", "shora",
+    # The offline pack's own romanizer spells three of these differently
+    # (word-final schwa dropped, nasal as "m"): keep both spellings.
+    "aavaaz", "haamphane", "shor",
+    "pause", "tune", "applause", "laughter", "laughing", "cheering", "cheers",
+    "singing", "humming", "instrumental", "interlude", "intro", "outro",
+    "silence", "silent", "noise", "beep", "beeping", "clapping", "whispering",
+    "murmuring", "chatter", "gasp", "gasping", "sigh", "sighing", "coughing",
+    "crying", "sobbing", "shouting", "screaming", "ringing", "alarm",
+    "footsteps", "thunder", "melody", "beat", "beats", "rhythm", "song",
+    "songs", "blankaudio", "nospeech", "speech", "inaudible",
+    "unintelligible", "crosstalk",
+}
+CUE_FILLER = {
+    "soft", "loud", "background", "playing", "plays", "play", "played",
+    "dramatic", "upbeat", "gentle", "slow", "melodic", "cheerful", "tense",
+    "suspenseful", "rhythmic", "traditional", "continues", "continuing",
+    "fades", "fading", "distant", "muffled", "echoing", "theme",
+    "and", "the", "a", "an", "of", "in", "on", "no", "kee",
+}
+RAW_CUES = ["संगीत", "धुन", "तालियाँ", "तालियां", "ताली", "हँसी", "हंसी",
+            "विराम", "वाद्य", "म्यूसिक", "म्यूज़िक",
+            "गाना गाने की आवाज़", "हांफने की आवाज़", "शोर",
+            "موسيقى", "الموسيقى", "音楽", "음악", "音乐", "音樂", "blank_audio"]
+_BRACKET_RE = re.compile(r"\[([^\]]*)\]|\(([^)]*)\)")
+
+
+def _cue_norm(s):
+    try:
+        rom = indic_to_latin(str(s or ""))
+    except Exception:
+        rom = str(s or "")
+    try:
+        from unidecode import unidecode
+        rom = unidecode(rom)
+    except Exception:
+        pass
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z]+", " ", rom.lower().replace("_", ""))).strip()
+
+
+def is_cue_text(s):
+    """True when the whole short text is only a sound description."""
+    raw = str(s or "").strip().lower()
+    if not raw:
+        return False
+    if len(raw.split()) <= 4:
+        for cue in RAW_CUES:
+            if cue in raw:
+                return True
+    norm = _cue_norm(raw)
+    if not norm:
+        return False
+    words = norm.split(" ")
+    has_cue = False
+    for w in words:
+        if w in CUE_WORDS:
+            has_cue = True
+        elif w not in CUE_FILLER:
+            return False
+    return has_cue
+
+
+def strip_cue_marks(text):
+    """Remove bracketed sound marks only — a single real word is never
+    dropped by this, even a cue word, because inside a line it may
+    truly be sung."""
+    t = str(text or "").replace("♪", " ").replace("♫", " ")
+
+    def _sub(m):
+        inner = m.group(1) if m.group(1) is not None else m.group(2)
+        return " " if is_cue_text(inner) else m.group(0)
+
+    t = _BRACKET_RE.sub(_sub, t)
+    # Split brackets: a cue that arrives cut across seconds leaves
+    # fragments like "[गाना" or "आवाज़]" — drop a bracket-carrying token
+    # only when its bracket-free text is itself a sound description.
+    kept = []
+    for tok in t.split():
+        if "[" in tok or "]" in tok:
+            inner = tok.replace("[", "").replace("]", "").replace("(", "").replace(")", "").strip()
+            if inner and is_cue_text(inner):
+                continue
+        kept.append(tok)
+    return re.sub(r"\s+", " ", " ".join(kept)).strip()
+
+
+def strip_labels(text):
+    t = strip_cue_marks(text)
+    if t and is_cue_text(t):
+        return ""
+    return t
+
+
+def collapse_echo(words):
+    """Collapse immediate repetition inside ONE per-second line only:
+    the same word twice in a row -> once; a phrase of 2+ words that
+    appears twice inside the same line -> keep the first occurrence.
+    Repetition across different seconds (a real chorus) is untouched."""
+    out = []
+    for w in words:
+        if not out or w != out[-1]:
+            out.append(w)
+    changed = True
+    while changed:
+        changed = False
+        n = len(out)
+        for ln in range(n // 2, 1, -1):
+            found = False
+            for i in range(0, n - ln + 1):
+                for j in range(i + ln, n - ln + 1):
+                    if out[i:i + ln] == out[j:j + ln]:
+                        del out[j:j + ln]
+                        found = True
+                        changed = True
+                        break
+                if found:
+                    break
+            if found:
+                break
+    return out
+
+
+# ---------------------------------------------------------------------
 def ts(seconds):
     """Seconds only, no milliseconds. Whisper timing is not accurate
     to the millisecond anyway, so .123 is false precision and clutter."""
@@ -176,18 +311,116 @@ def ts(seconds):
     return f"{h:02d}:{m:02d}:{s:02d}"
 
 
+def _norm_vote_word(w):
+    w = str(w).lower()
+    w = re.sub(r"[.,!?\"'’\";:()\[\]—\-]", "", w)
+    w = w.replace("ं", "").replace("ँ", "").replace("़", "")
+    return w
+
+
+def majority_vote(lines):
+    """Songs repeat the same line many times and the captions render it
+    differently each time. Group lines by their normalised word sequence
+    and spell every occurrence the way it most often appears. Only within
+    clearly repeated lines: same words in a different order or spelling,
+    same length give or take one word. Never merge different lines: when
+    one line's words are all inside the other's they are adjacent slices
+    of one sung line, not the same line repeated. Each group merges at
+    most once, so merges never chain. Only rewrites when the top spelling
+    appears at least twice and strictly more than the runner-up; ties and
+    single lines stay untouched. Never changes a timestamp.
+    lines: [(sec, text)] -> same shape, same order, same seconds."""
+    from collections import Counter
+    n = len(lines)
+    if n < 2:
+        return lines
+    norm = [[_norm_vote_word(w) for w in text.split()] for _, text in lines]
+    norm = [[w for w in ws if w] for ws in norm]
+    keys = [" ".join(sorted(ws)) for ws in norm]
+    groups = {}
+    order = []
+    for i, k in enumerate(keys):
+        if k not in groups:
+            groups[k] = []
+            order.append(k)
+        groups[k].append(i)
+
+    def jaccard(a, b):
+        ca, cb = Counter(a), Counter(b)
+        inter = sum((ca & cb).values())
+        uni = sum((ca | cb).values())
+        return inter / uni if uni else 0.0
+
+    def is_subset(shorter, longer):
+        cs, cl = Counter(shorter), Counter(longer)
+        return all(cl[w] >= c for w, c in cs.items())
+
+    def key_words(k):
+        return k.split() if k else []
+
+    pairs = []
+    for a in range(len(order)):
+        for b in range(a + 1, len(order)):
+            ka, kb = key_words(order[a]), key_words(order[b])
+            if abs(len(ka) - len(kb)) > 1:
+                continue
+            if jaccard(ka, kb) < 0.8:
+                continue
+            shorter, longer = (ka, kb) if len(ka) <= len(kb) else (kb, ka)
+            if is_subset(shorter, longer):
+                continue
+            pairs.append((jaccard(ka, kb), order[a], order[b]))
+    pairs.sort(key=lambda p: -p[0])
+    merged = set()
+    for _, ka, kb in pairs:
+        if ka in merged or kb in merged:
+            continue
+        groups[ka] = groups[ka] + groups[kb]
+        del groups[kb]
+        merged.add(ka)
+        merged.add(kb)
+    out = list(lines)
+    for idxs in groups.values():
+        if len(idxs) < 2:
+            continue
+        counts = {}
+        for i in idxs:
+            counts[lines[i][1]] = counts.get(lines[i][1], 0) + 1
+        ranked = sorted(counts.items(), key=lambda kv: -kv[1])
+        best, best_n = ranked[0]
+        second = ranked[1][1] if len(ranked) > 1 else 0
+        if best_n >= 2 and best_n > second:
+            for i in idxs:
+                out[i] = (lines[i][0], best)
+    return out
+
+
 def group_by_second(items):
     """Sec by sec: one line per second, words spoken in that second joined.
-    items are (start, end, text). Returns [(second_start, joined_text)]."""
+    items are (start, end, text). Sound-description marks are cleaned off
+    and echo repetition inside one second is collapsed. Returns
+    [(second_start, joined_text)]."""
     buckets = {}
     order = []
     for a, b, t in items:
+        t = strip_cue_marks(t)
+        if not t:
+            continue
         sec = int(a)
         if sec not in buckets:
             buckets[sec] = []
             order.append(sec)
         buckets[sec].append(t)
-    return [(sec, " ".join(buckets[sec])) for sec in order]
+    out = []
+    for sec in order:
+        words = collapse_echo(" ".join(buckets[sec]).split())
+        if not words:
+            continue
+        text = " ".join(words)
+        if is_cue_text(text):
+            continue
+        out.append((sec, text))
+    return majority_vote(out)
 
 
 def detect_language(model, path):

@@ -774,6 +774,7 @@
                 <button class="btn btn-ghost" id="copy-btn" type="button">Copy</button>
                 <button class="btn btn-ghost" id="clear-btn" type="button">Clear</button>
               </div>
+              <p class="hint" id="check-count" role="status" aria-live="polite" style="display:none;margin-top:8px"></p>
               <div class="status" id="status2" role="status" aria-live="polite"></div>
               <p class="hint save-hint" style="margin-top:8px">Saving gives you <b>two files</b>, second by second: one in the video&rsquo;s own writing, and the same words in English letters, spelled the way they sound. <b>Save as .srt</b> gives you the same two files as subtitles (.srt) that video players can show.</p>
             </div>
@@ -851,8 +852,10 @@
             <li>Know the language? Pick it. A picked language is always surer than Auto.</li>
             <li>The AI check runs twice: first it fixes, then it verifies.</li>
             <li>Names are checked against the video title.</li>
-            <li>The check may fix a word. It may never add a word that was not heard.</li>
-            <li>An unclear sung or fast word stays as heard &mdash; it is never guessed or filled in.</li>
+            <li>If the video is a well-known song, the check uses the song&rsquo;s real published lyrics as the reference and may correct a word to them &mdash; in the original writing, and in the English-letters version to the song&rsquo;s real published romanization.</li>
+            <li>Real repeated words are kept, not shrunk &mdash; if the singer really sings a word twice in a row, both stay. Only a repetition that is an echo from the captions is kept once.</li>
+            <li>A word the check cannot confirm stays as heard &mdash; a word is only corrected when the check is confident it is what the singer sang.</li>
+            <li>After the check, the page tells you how many lines it fixed.</li>
             <li>Long transcripts are checked in small parts, so no part is skipped or cut short.</li>
           </ul>
         </div>
@@ -1392,7 +1395,7 @@ HONEST LIMITS
         var urlInput=$("url-input"), langSelect=$("lang-select");
         var statusEl=$("status"), status2El=$("status2");
         var transcriptEl=$("transcript");
-        var state={ videoId:null, title:"", entries:[], tracks:[] };
+        var state={ videoId:null, title:"", entries:[], tracks:[], enChecked:null, wordsChecked:false };
 
         /* ---------- every language on Earth, for the dropdown ----------
            The complete ISO 639-1 language list, plus widely used languages
@@ -1698,7 +1701,7 @@ HONEST LIMITS
             setStatus(statusEl,"err","That link doesn&rsquo;t look right. Copy the full YouTube link and try again.");
             return null;
           }
-          state.videoId=id; state.entries=[]; state.tracks=[];
+          state.videoId=id; state.entries=[]; state.tracks=[]; state.enChecked=null; state.wordsChecked=false; hideCheckCount();
           state.title=""; state.lengthSec=0; state.views=null;
           clearStatus(statusEl);
           $("video-box").classList.add("show");
@@ -2170,22 +2173,71 @@ HONEST LIMITS
           }
           return (best && bestN>=3 && bestN>=total*0.4)? best : "";
         }
+        /* ---------- word-check result line & checked English lines ----------
+           After any word-check (the button, or the automatic check that
+           runs when a transcript loads with a key connected) one short
+           line under the buttons says how many per-second lines it
+           fixed. The check runs on the English-letters lines too, and
+           those checked lines are kept in state.enChecked (one entry
+           per second) so the English box and both English saved files
+           show the corrected words, not a fresh romanization. Any new
+           or edited transcript clears them again. */
+        function showCheckCount(n){
+          var el=$("check-count"); if(!el) return;
+          el.textContent= n>0? ("Checked \u2014 "+n+" line"+(n===1?"":"s")+" fixed.") : "Checked \u2014 the words were already right.";
+          el.style.display="block";
+        }
+        function hideCheckCount(){
+          var el=$("check-count"); if(!el) return;
+          el.textContent=""; el.style.display="none";
+        }
+        function enCheckedTextFor(sec){
+          if(!state.enChecked) return null;
+          for(var i=0;i<state.enChecked.length;i++){ if(state.enChecked[i].sec===sec) return state.enChecked[i].text; }
+          return null;
+        }
+        function englishWordsForBucket(b){
+          var checked=enCheckedTextFor(b.sec);
+          if(checked!=null) return checked;
+          return romanize(b.words.join(" ")).replace(/\s+/g," ").trim();
+        }
+        function countFixedLines(beforeOrig, beforeEn, afterOrig, afterEn){
+          var n=Math.max(beforeOrig.length, afterOrig.length), fixed=0;
+          for(var i=0;i<n;i++){
+            if(beforeOrig[i]!==afterOrig[i] || beforeEn[i]!==afterEn[i]) fixed++;
+          }
+          return fixed;
+        }
+
         /* ---------- the AI word check, done properly ----------
            Two passes per chunk, never one loose pass over the whole text:
            pass 1 fixes clear mishearings with strict rules (names checked
-           against the video title, no word may be added or invented, an
-           unclear sung or fast word stays as heard); pass 2 compares the
-           fix against the original and undoes any change that added a
-           word, a name or an idea that was not there. Long transcripts
-           are split into chunks of 30 lines so nothing is skipped or cut
-           short by a reply limit, and a chunk whose fix changes the word
-           count wildly is rejected - the original lines are kept. */
+           against the video title; when the title names a well-known
+           song or a famous artist, the song's real published lyrics are
+           the reference and words are corrected to them - but only when
+           the checker is confident that is what the singer sang, and an
+           unconfirmed word stays as heard; a word the singer really
+           repeats back-to-back, as the real lyrics repeat it, is kept
+           repeated - only a repetition that is an echo from the
+           captions is kept once); pass 2 compares the fix against the
+           original and undoes any change that is not one of the allowed
+           corrections: a word corrected to the song's real published
+           lyrics, a word corrected to the spelling used in the song's
+           own repeated lines or the video title, a real repeated word
+           restored, or an echo repetition kept only once. The whole
+           check runs twice over the transcript: once on the original
+           lines in their own writing, then again on the English-letters
+           lines, corrected to the song's real published romanization.
+           Long transcripts are split into chunks of 30 lines so nothing
+           is skipped or cut short by a reply limit, and a chunk whose
+           fix changes the word count wildly is rejected - the original
+           lines are kept. */
         function wordCountOf(s){ return String(s||"").split(/\s+/).filter(Boolean).length; }
         function saneChunk(orig, fixed){
           if(!fixed || fixed.length!==orig.length) return false;
           for(var i=0;i<orig.length;i++){
             var o=wordCountOf(orig[i]), f=wordCountOf(fixed[i]);
-            if(o>0 && (f>o*1.4+3 || f<Math.max(1, Math.floor(o*0.5)))) return false;
+            if(o>0 && (f>o*1.4+3 || f<Math.max(1, Math.floor(o*0.35)))) return false;
           }
           return true;
         }
@@ -2193,9 +2245,10 @@ HONEST LIMITS
           var out=String(text||"").replace(/```[a-z]*\n?/gi,"").split(/\r?\n/).map(function(l){ return l.trim(); }).filter(Boolean);
           return out.length===n? out : null;
         }
-        function polishLines(lines){
+        function polishLines(lines, opts){
           if(!ai.connected || !ai.chatModel || !lines.length) return Promise.resolve(null);
-          var langCtx=langSelect.value? langNameFor(langSelect.value) : (state.detectedLang||"the video's own language");
+          var englishMode=!!(opts && opts.english);
+          var langCtx=englishMode? "English letters - the song's words written with English letters, spelled the way they sound (a romanization, never a translation)" : (langSelect.value? langNameFor(langSelect.value) : (state.detectedLang||"the video's own language"));
           var titleCtx=state.title? ('The video title is: "'+state.title+'". Use it to spell names of people, places and brands exactly right. ') : "";
           var CHUNK=30, chunks=[];
           for(var i=0;i<lines.length;i+=CHUNK) chunks.push(lines.slice(i, i+CHUNK));
@@ -2208,15 +2261,21 @@ HONEST LIMITS
               "\n\nCheck every word with great care - names, fast lines and sung words most of all:\n"+
               "- Fix words that are clearly misheard or misspelled, and fix punctuation.\n"+
               "- Spell names of people, places and brands correctly, using the title when it helps.\n"+
-              "- Never add a word that was not heard. If a sung or fast word is unclear, keep the original word - never guess a new one into its place.\n"+
-              "- Sound descriptions like [music], [pause] or [संगीत] are not words: if one slipped into a line, take it out and keep the line's real words. Never add one.\n"+
-              "- Never drop words, never merge or split lines.\n"+
+              (englishMode?
+              "- These lines are the song's words in English letters. If the video title names a well-known song or a famous artist, the song's real published lyrics are your reference: correct each word to the song's real published romanization - for example 'queen', 'mainu', 'jiven', 'love dose'. Keep the English-letters writing: do not translate, and do not turn the words back into their original script.\n" :
+              "- If the video title names a well-known song or a famous artist, the song's real published lyrics are your reference: correct each word to the real words in this language, exactly as the singer sings them.\n")+
+              "- Only correct a word when you are confident it is what the singer sang. If you are not sure, keep the original word - never guess a new one into its place.\n"+
+              "- This is a song: the same line often repeats later in the song. If a word is clearly misheard but the same line appears again spelled clearly, use the clear spelling from the repeated line.\n"+
+              "- Restore words the singer really repeats: if the real lyrics repeat a word back-to-back (for example 'de de' in 'Mujhe de de love dose'), keep both words - do not shrink a real double to one. Only shrink a repetition when it is an echo from the captions: if the same word or phrase is repeated back-to-back inside one line only because the captions repeated it, keep it only once.\n"+
+              "- Never invent a new line, and never add a word that is not one of the corrections above.\n"+
+              "- Sound descriptions like [music], [pause], [संगीत] or [गाना गाने की आवाज़] are not words: if one slipped into a line, take it out and keep the line's real words. Never add one.\n"+
+              "- Never drop words, never merge or split lines - except the echo repetitions above.\n"+
               "Keep the exact same number of lines, in the same order, in the same language and same writing. Do not translate. Reply with only the corrected lines, no explanation.";
             return aiChat(promptText).then(function(text){
               var fixed=parseReplyLines(text, chunk.length);
               if(!saneChunk(chunk, fixed)){ result=result.concat(chunk); return runChunk(idx+1); }
               var verify="ORIGINAL lines:\n"+chunk.join("\n")+"\n\nCHECKED lines:\n"+fixed.join("\n")+
-                "\n\nCompare them line by line. The CHECKED lines may fix spelling and clear mishearings, but they must not add any word, name or idea that is not in the ORIGINAL, and must not drop whole words. Where a checked line added or invented anything, restore the original wording for that line. Keep the exact same number of lines, in the same order, in the same language. Reply with only the final lines.";
+                "\n\nCompare them line by line. The CHECKED lines may fix spelling and clear mishearings, but they must not add any word, name or idea that is not in the ORIGINAL. Exactly these corrections are allowed: a word corrected to the song's real published lyrics"+(englishMode? " in their real published romanization":"")+", a word corrected to the spelling used in the song's own repeated lines or the video title, a real repeated word restored (a word the singer really sings twice in a row, kept twice), and an echo repetition from the captions kept only once. Where a checked line changed anything else, or added or invented anything beyond those corrections, restore the original wording for that line. Keep the exact same number of lines, in the same order, in the same language. Reply with only the final lines.";
               return aiChat(verify).then(function(text2){
                 var finalLines=parseReplyLines(text2, chunk.length);
                 result=result.concat(saneChunk(chunk, finalLines)? finalLines : fixed);
@@ -2240,12 +2299,37 @@ HONEST LIMITS
           state.entries.forEach(function(e){ e.text=stripLabels(e.text); });
           state.entries=state.entries.filter(function(e){ return e.text; });
           if(!state.entries.length) return Promise.resolve(false);
+          /* The per-second lines before the check, in both writings -
+             the fixed-lines count is measured on these, position by
+             position, exactly as the brief asks. */
+          var beforeBuckets=secondBuckets();
+          var beforeOrig=beforeBuckets.map(function(b){ return b.words.join(" "); });
+          var beforeEn=beforeBuckets.map(function(b){ return romanize(b.words.join(" ")).replace(/\s+/g," ").trim(); });
           var lines=state.entries.map(function(e){ return e.text; });
           return polishLines(lines).then(function(out){
             if(!out) return false;
             state.entries.forEach(function(e, i){ e.text=out[i]; });
-            renderEntries();
-            return true;
+            /* The check has read these entries and may have restored
+               real repeated words on purpose - from here on the
+               per-second display must not shrink a repeat that lies
+               inside one checked entry (see collapseEcho). */
+            state.wordsChecked=true;
+            /* Second run of the check: the English-letters lines, in
+               their own writing, corrected to the song's real
+               published romanization. The checked lines are kept, so
+               the English box and both English saved files show them
+               instead of a fresh romanization. */
+            var afterBuckets=secondBuckets();
+            var enLines=afterBuckets.map(function(b){ return romanize(b.words.join(" ")).replace(/\s+/g," ").trim(); });
+            return polishLines(enLines, { english:true }).then(function(enOut){
+              state.enChecked=enOut? afterBuckets.map(function(b, i){ return { sec:b.sec, text:enOut[i] }; }) : null;
+              renderEntries();
+              var afterOrig=timedLines(false).map(function(l){ return splitStamp(l).text; });
+              var afterEn=timedLines(true).map(function(l){ return splitStamp(l).text; });
+              var fixed=countFixedLines(beforeOrig, beforeEn, afterOrig, afterEn);
+              showCheckCount(fixed);
+              return { fixed:fixed };
+            });
           });
         }
 
@@ -2287,17 +2371,20 @@ HONEST LIMITS
              transcript is rebuilt from its cleaned entries, pasted
              words are cleaned line by line - so the checker only ever
              sees real words and can never hand a description back. */
+          var parsed=currentLines().map(splitStamp).map(function(p){ return { stamp:p.stamp, sec:p.sec, text:stripLabels(p.text) }; }).filter(function(p){ return p.text; });
+          var lines=parsed.map(function(p){ return p.text; });
+          state.enChecked=null; state.wordsChecked=false; hideCheckCount();
           if(state.entries.length){
             state.entries.forEach(function(e){ e.text=stripLabels(e.text); });
             state.entries=state.entries.filter(function(e){ return e.text; });
             renderEntries();
           }
-          var parsed=currentLines().map(splitStamp).map(function(p){ return { stamp:p.stamp, sec:p.sec, text:stripLabels(p.text) }; }).filter(function(p){ return p.text; });
-          var lines=parsed.map(function(p){ return p.text; });
           if(!lines.length){
             setStatus(status2El,"err","There are no words here yet. Get the words from a video first, or paste them in the box.");
             return;
           }
+          var beforeOrig=lines.slice();
+          var beforeEn=lines.map(function(l){ return romanize(l).replace(/\s+/g," ").trim(); });
           polishBtn.disabled=true;
           startProcessing();
           setStatus(status2El,"info",'<span class="spinner" aria-hidden="true"></span>'+ai.provider.name+" is checking every word&hellip;");
@@ -2306,19 +2393,31 @@ HONEST LIMITS
               setStatus(status2El,"warn","The check didn&rsquo;t come back cleanly, so your words were left exactly as they are.");
               return;
             }
-            if(state.entries.length && state.entries.length===out.length){
-              state.entries.forEach(function(e, i){ e.text=out[i]; });
-              renderEntries();
-            }else if(out.length===parsed.length && parsed.every(function(p){ return p.sec!=null; })){
-              state.entries=out.map(function(l, i){ return { start:parsed[i].sec, dur:1, text:l }; });
-              renderEntries();
-            }else{
-              state.entries=[];
-              transcriptEl.value=out.join("\n");
-              renderEnglishView();
-              updateStats();
-            }
-            setStatus(status2El,"ok","Checked by "+prettyModel(ai.chatModel)+" from "+ai.provider.name+" - clear mistakes fixed, same lines, same order, same language. Now save both files.");
+            /* Second run of the check: the English-letters lines, in
+               their own writing. The checked lines are kept for the
+               English box and both English saved files. */
+            var enBase=out.map(function(l){ return romanize(l).replace(/\s+/g," ").trim(); });
+            return polishLines(enBase, { english:true }).then(function(enOut){
+              var enFinal=enOut||enBase;
+              state.enChecked=enOut? parsed.map(function(p, i){ return { sec:p.sec, text:enOut[i] }; }).filter(function(x){ return x.sec!=null; }) : null;
+              if(state.entries.length && state.entries.length===out.length){
+                state.entries.forEach(function(e, i){ e.text=out[i]; });
+                state.wordsChecked=true;
+                renderEntries();
+              }else if(out.length===parsed.length && parsed.every(function(p){ return p.sec!=null; })){
+                state.entries=out.map(function(l, i){ return { start:parsed[i].sec, dur:1, text:l }; });
+                state.wordsChecked=true;
+                renderEntries();
+              }else{
+                state.entries=[];
+                state.enChecked=null; state.wordsChecked=false;
+                transcriptEl.value=out.join("\n");
+                renderEnglishView();
+                updateStats();
+              }
+              showCheckCount(countFixedLines(beforeOrig, beforeEn, out, enFinal));
+              setStatus(status2El,"ok","Checked by "+prettyModel(ai.chatModel)+" from "+ai.provider.name+" - clear mistakes fixed, same lines, same order, same language. Now save both files.");
+            });
           }).finally(function(){ polishBtn.disabled=false; stopProcessing(); });
         });
         /* ---------- Gemini listening helpers ----------
@@ -2435,7 +2534,7 @@ HONEST LIMITS
             var replyText=parts.map(function(x){ return x.text||""; }).join("\n");
             var entries=parseGeminiTranscript(replyText);
             if(!entries.length) throw new Error("empty");
-            state.entries=entries;
+            state.entries=entries; state.enChecked=null; state.wordsChecked=false; hideCheckCount();
             renderEntries();
             function done(checked){
               setStatus(status2El,"ok", ai.provider.name+" listened and wrote the words down"+
@@ -2550,7 +2649,7 @@ HONEST LIMITS
               if(whole) entries=[{ start:0, dur:2, text:whole }];
             }
             if(!entries.length) throw new Error("empty");
-            state.entries=entries;
+            state.entries=entries; state.enChecked=null; state.wordsChecked=false; hideCheckCount();
             if(d.language) state.detectedLang=langNameFor(d.language)+(lang?"":" (auto-detected)");
             renderEntries();
             function done(checked){
@@ -2622,8 +2721,9 @@ HONEST LIMITS
               if(whole) entries=[{ start:0, dur:2, text:whole }];
             }
             if(!entries.length) throw new Error("empty");
-            state.entries=entries;
+            state.entries=entries; state.enChecked=null; hideCheckCount();
             if(d.language) state.detectedLang=langNameFor(d.language)+(lang?"":" (auto-detected)");
+            state.wordsChecked=false;
             state.langNote="";
             renderEntries();
             function done(checked){
@@ -2993,7 +3093,7 @@ HONEST LIMITS
           function runCaptions(){
           setStatus(statusEl,"info",'<span class="spinner" aria-hidden="true"></span>Looking for the words\u2026');
           getCaptions(id, lang).then(function(res){
-            state.entries=res.entries;
+            state.entries=res.entries; state.enChecked=null; state.wordsChecked=false; hideCheckCount();
             renderEntries();
             /* Cross-check: the script of the words themselves should match
                the track language. If it clearly does not, say so and tell
@@ -3070,7 +3170,10 @@ HONEST LIMITS
             var p=splitStamp(line);
             var words=stripLabels(p.text);
             if(words){
-              var rom=romanize(words).replace(/\s+/g," ").trim();
+              /* Checked English lines win over a fresh romanization,
+                 so the box shows the corrected words the check made. */
+              var checked=(p.sec!=null)? enCheckedTextFor(p.sec) : null;
+              var rom=checked!=null? checked : romanize(words).replace(/\s+/g," ").trim();
               out.push("["+(p.stamp||fmtSec(idx))+"] "+(rom||words));
             }
             idx++;
@@ -3082,6 +3185,7 @@ HONEST LIMITS
         }
         function updateStats(){ /* the words area speaks for itself - nothing extra to show */ }
         transcriptEl.addEventListener("input", function(){
+          state.enChecked=null; state.wordsChecked=false; hideCheckCount();
           if(state.entries.length && transcriptEl.value.trim()==="") state.entries=[];
           renderEnglishView();
           updateStats();
@@ -3131,14 +3235,45 @@ HONEST LIMITS
           var reader=new FileReader();
           reader.onload=function(){
             var entries=parseSubtitleText(String(reader.result||""));
+            state.enChecked=null; state.wordsChecked=false; hideCheckCount();
             if(entries.length){
               state.entries=entries; renderEntries();
-              setStatus(status2El,"ok","Added the words from your file. You can save them below.");
+              /* Words added from a file get the same automatic check
+                 as every other route - but only with a key connected. */
+              if(ai.connected && ai.chatModel){
+                setStatus(status2El,"info",'<span class="spinner" aria-hidden="true"></span>Added the words from your file. '+ai.provider.name+" is checking every word&hellip;");
+                aiPolishEntries().then(function(res){
+                  setStatus(status2El,"ok","Added the words from your file"+(res? ", and the words were checked automatically" : "")+". You can save them below.");
+                });
+              }else{
+                setStatus(status2El,"ok","Added the words from your file. You can save them below.");
+              }
             }else{
               state.entries=[];
               transcriptEl.value=String(reader.result||"");
               renderEnglishView();
               updateStats();
+              if(ai.connected && ai.chatModel){
+                var parsedF=currentLines().map(splitStamp).map(function(p){ return { stamp:p.stamp, sec:p.sec, text:stripLabels(p.text) }; }).filter(function(p){ return p.text; });
+                var fLines=parsedF.map(function(p){ return p.text; });
+                if(fLines.length){
+                  var fBeforeEn=fLines.map(function(l){ return romanize(l).replace(/\s+/g," ").trim(); });
+                  setStatus(status2El,"info",'<span class="spinner" aria-hidden="true"></span>Added your file. '+ai.provider.name+" is checking every word&hellip;");
+                  polishLines(fLines).then(function(out){
+                    if(!out){ setStatus(status2El,"ok","Added your file. You can save it below."); return; }
+                    var enBase=out.map(function(l){ return romanize(l).replace(/\s+/g," ").trim(); });
+                    return polishLines(enBase, { english:true }).then(function(enOut){
+                      state.enChecked=enOut? parsedF.map(function(p, i){ return { sec:p.sec, text:enOut[i] }; }).filter(function(x){ return x.sec!=null; }) : null;
+                      transcriptEl.value=out.map(function(l, i){ return (parsedF[i].stamp? "["+parsedF[i].stamp+"] " : "")+l; }).join("\n");
+                      renderEnglishView();
+                      updateStats();
+                      showCheckCount(countFixedLines(fLines, fBeforeEn, out, enOut||enBase));
+                      setStatus(status2El,"ok","Added your file, and the words were checked automatically. You can save it below.");
+                    });
+                  }).catch(function(){ setStatus(status2El,"ok","Added your file. You can save it below."); });
+                  return;
+                }
+              }
               setStatus(status2El,"ok","Added your file. You can save it below.");
             }
           };
@@ -3201,16 +3336,17 @@ HONEST LIMITS
           murmuring:1, chatter:1, gasp:1, gasping:1, sigh:1, sighing:1, coughing:1,
           crying:1, sobbing:1, shouting:1, screaming:1, ringing:1, alarm:1,
           footsteps:1, thunder:1, melody:1, beat:1, beats:1, rhythm:1, song:1, songs:1,
-          blankaudio:1, nospeech:1, speech:1, inaudible:1, unintelligible:1, crosstalk:1 };
+          blankaudio:1, nospeech:1, speech:1, inaudible:1, unintelligible:1, crosstalk:1,
+          gaanaa:1, gaane:1, aavaaza:1, haanphane:1, shora:1 };
         var CUE_FILLER={ soft:1, loud:1, background:1, playing:1, plays:1, play:1, played:1,
           dramatic:1, upbeat:1, gentle:1, slow:1, melodic:1, cheerful:1, tense:1,
           suspenseful:1, rhythmic:1, traditional:1, continues:1, continuing:1,
           fades:1, fading:1, distant:1, muffled:1, echoing:1, theme:1,
-          and:1, the:1, a:1, an:1, of:1, in:1, on:1, no:1 };
+          and:1, the:1, a:1, an:1, of:1, in:1, on:1, no:1, kee:1 };
         /* Cue words in scripts whose endings are written onto the word
            itself, so they are matched as part of a short line. */
         var RAW_CUES=["संगीत","धुन","तालियाँ","तालियां","ताली","हँसी","हंसी","विराम","वाद्य","म्यूसिक","म्यूज़िक",
-          "موسيقى","الموسيقى","音楽","음악","音乐","音樂","blank_audio"];
+          "موسيقى","الموسيقى","音楽","음악","音乐","音樂","blank_audio","गाना गाने की आवाज़","हांफने की आवाज़","शोर"];
         function cueNorm(s){
           return romanize(String(s||"").toLowerCase().replace(/_/g,"")).replace(/[^a-z]+/g," ").replace(/\s+/g," ").trim();
         }
@@ -3237,6 +3373,11 @@ HONEST LIMITS
           t=t.replace(/\[([^\]]*)\]|\(([^)]*)\)/g, function(m, b, p){
             return isCueText(b!==undefined? b : p)? " " : m;
           });
+          t=t.split(/\s+/).filter(Boolean).filter(function(tok){
+            if(tok.indexOf("[")<0 && tok.indexOf("]")<0) return true;
+            var bare=tok.replace(/[\[\]]/g,"");
+            return !isCueText(bare);
+          }).join(" ");
           return t.replace(/\s+/g," ").trim();
         }
         function stripLabels(text){
@@ -3286,15 +3427,146 @@ HONEST LIMITS
         }
 
         /* ---------- group the words second by second ---------- */
+        function collapseEcho(words, srcs){
+          /* srcs[i] says which entry words[i] came from (see
+             secondBuckets). When the transcript has been word-checked
+             (state.wordsChecked), the checker has already read each
+             entry and may have deliberately restored a real repeated
+             word or phrase - so a repeat lying entirely inside ONE
+             checked entry is kept, and only a repeat spanning two
+             different entries (a caption echo at a cue boundary) is
+             collapsed. Unchecked transcripts collapse exactly as
+             before. Returns { words, srcs }, kept in step. */
+          var keepChecked=!!(state.wordsChecked && srcs);
+          // 1. the same word twice in a row -> once
+          var out=[], outSrcs=[];
+          for(var i=0;i<words.length;i++){
+            var prev=out.length-1;
+            if(prev>=0 && words[i]===out[prev] && !(keepChecked && srcs[i]!=null && srcs[i]===outSrcs[prev])) continue;
+            out.push(words[i]); if(srcs) outSrcs.push(srcs[i]);
+          }
+          // 2. a phrase of 2+ words that appears twice inside the same line -> keep the first occurrence only.
+          //    Longest phrase first, repeat until nothing more collapses. The two occurrences must not overlap.
+          var changed=true;
+          while(changed){
+            changed=false;
+            var n=out.length;
+            for(var len=Math.floor(n/2); len>=2; len--){
+              var found=false;
+              for(var i=0;i+len<=n && !found;i++){
+                for(var j=i+len;j+len<=n;j++){
+                  var same=true;
+                  for(var k=0;k<len;k++){ if(out[i+k]!==out[j+k]){ same=false; break; } }
+                  if(same){
+                    if(keepChecked){
+                      var oneEntry=outSrcs[i]!=null;
+                      for(var m=0;m<len && oneEntry;m++){
+                        if(outSrcs[i+m]!==outSrcs[i] || outSrcs[j+m]!==outSrcs[i]) oneEntry=false;
+                      }
+                      if(oneEntry) continue;
+                    }
+                    out.splice(j, len); if(srcs) outSrcs.splice(j, len); found=true; changed=true; break;
+                  }
+                }
+              }
+              if(found) break;
+            }
+          }
+          return { words:out, srcs:outSrcs };
+        }
+        /* ---------- majority vote over repeated lines ----------
+           Songs repeat the same line many times, and the captions
+           render it differently each time. Lines are grouped by their
+           normalised word sequence (lowercase, no punctuation,
+           Devanagari anusvara / chandrabindu / nukta stripped, words
+           sorted); two groups merge only when their word sets are very
+           close (Jaccard 0.8 or more, length differs by at most one
+           word) AND neither group's words are all inside the other's -
+           when the shorter group's words are all inside the longer's,
+           they are adjacent slices of one sung line, not the same line
+           repeated, so they never merge. Each group merges at most
+           once, strongest pair first, so merges never chain. In each
+           group of at least two lines the exact spellings are counted;
+           if the top spelling appears at least twice and strictly more
+           than the runner-up, every line in the group is rewritten to
+           it. Ties and single lines stay untouched, timestamps never
+           change, and a new array comes back in the same order with
+           the same seconds. */
+        function normWordForVote(w){
+          return String(w||"").toLowerCase().replace(/[\u0901\u0902\u093C]/g,"").replace(/[^\p{L}\p{N}]/gu,"");
+        }
+        function majorityVote(buckets){
+          var items=buckets.map(function(b, idx){
+            var norm=b.words.map(normWordForVote).filter(Boolean);
+            var sorted=norm.slice().sort();
+            var set={};
+            norm.forEach(function(w){ set[w]=1; });
+            return { idx:idx, key:sorted.join(" "), set:set, setSize:Object.keys(set).length, spelling:b.words.join(" ") };
+          });
+          var groups=[], byKey={};
+          items.forEach(function(it){
+            var g=byKey[it.key];
+            if(!g){ g={ members:[], set:it.set, setSize:it.setSize }; byKey[it.key]=g; groups.push(g); }
+            g.members.push(it);
+          });
+          function setKeys(s){ return Object.keys(s); }
+          function isSubset(a, b){ return setKeys(a).every(function(k){ return b[k]; }); }
+          var pairs=[];
+          for(var i=0;i<groups.length;i++){
+            for(var j=i+1;j<groups.length;j++){
+              var A=groups[i], B=groups[j];
+              if(Math.abs(A.setSize-B.setSize)>1) continue;
+              if(isSubset(A.set, B.set) || isSubset(B.set, A.set)) continue;
+              var inter=0;
+              setKeys(A.set).forEach(function(k){ if(B.set[k]) inter++; });
+              var union=A.setSize+B.setSize-inter;
+              var jac=union? inter/union : 0;
+              if(jac>=0.8) pairs.push({ i:i, j:j, jac:jac });
+            }
+          }
+          pairs.sort(function(p, q){ return q.jac-p.jac || p.i-q.i || p.j-q.j; });
+          var mergedUsed={}, finalGroups=groups.map(function(g){ return g.members.slice(); });
+          var absorbed={};
+          pairs.forEach(function(p){
+            if(mergedUsed[p.i] || mergedUsed[p.j]) return;
+            mergedUsed[p.i]=true; mergedUsed[p.j]=true;
+            finalGroups[p.i]=finalGroups[p.i].concat(finalGroups[p.j]);
+            absorbed[p.j]=true;
+          });
+          var rewrite={};
+          finalGroups.forEach(function(members, gi){
+            if(absorbed[gi] || members.length<2) return;
+            var counts={}, order=[];
+            members.forEach(function(it){
+              if(!(it.spelling in counts)){ counts[it.spelling]=0; order.push(it.spelling); }
+              counts[it.spelling]++;
+            });
+            var top=null, topN=0, secondN=0;
+            order.forEach(function(sp){
+              var c=counts[sp];
+              if(c>topN){ secondN=topN; topN=c; top=sp; }
+              else if(c>secondN){ secondN=c; }
+            });
+            if(top!=null && topN>=2 && topN>secondN){
+              members.forEach(function(it){ rewrite[it.idx]=top; });
+            }
+          });
+          return buckets.map(function(b, idx){
+            return { sec:b.sec, words:(rewrite[idx]!=null? rewrite[idx].split(/\s+/).filter(Boolean) : b.words.slice()) };
+          });
+        }
         function secondBuckets(){
           var buckets=[], bySec={};
-          function addWord(sec, word){
+          /* Every word also records which entry it came from
+             (b.srcs, parallel to b.words) so collapseEcho can tell a
+             repeat inside one entry from an echo spanning two. */
+          function addWord(sec, word, src){
             var b=bySec[sec];
-            if(!b){ b={sec:sec, words:[]}; bySec[sec]=b; buckets.push(b); }
-            b.words.push(word);
+            if(!b){ b={sec:sec, words:[], srcs:[]}; bySec[sec]=b; buckets.push(b); }
+            b.words.push(word); b.srcs.push(src);
           }
           if(state.entries.length){
-            state.entries.forEach(function(e){
+            state.entries.forEach(function(e, ei){
               var words=stripLabels(e.text).split(/\s+/).filter(Boolean);
               var dur=e.dur||2;
               words.forEach(function(w, idx){
@@ -3307,17 +3579,19 @@ HONEST LIMITS
                    after the timings were taken, the counts no longer
                    match and the even spread takes over again. */
                 var t=(e.wt && e.wt.length===words.length)? e.wt[idx] : e.start+(words.length>1? dur*idx/words.length : 0);
-                addWord(Math.floor(t), w);
+                addWord(Math.floor(t), w, ei);
               });
             });
           }else{
             cleanedLines().forEach(function(line, i){
-              line.split(/\s+/).filter(Boolean).forEach(function(w){ addWord(i, w); });
+              line.split(/\s+/).filter(Boolean).forEach(function(w){ addWord(i, w, i); });
             });
           }
           buckets.sort(function(a,b){ return a.sec-b.sec; });
-          return buckets.filter(function(b, idx){
-            return idx===0 || buckets[idx-1].words.join(" ")!==b.words.join(" ");
+          buckets.forEach(function(b){ var c=collapseEcho(b.words, b.srcs); b.words=c.words; b.srcs=c.srcs; });
+          var voted=majorityVote(buckets);
+          return voted.filter(function(b, idx){
+            return idx===0 || voted[idx-1].words.join(" ")!==b.words.join(" ");
           });
         }
 
@@ -3421,7 +3695,7 @@ HONEST LIMITS
         function timedLines(useEnglishLetters){
           return secondBuckets().map(function(b){
             var words=b.words.join(" ");
-            if(useEnglishLetters) words=romanize(words).replace(/\s+/g," ").trim();
+            if(useEnglishLetters) words=englishWordsForBucket(b);
             return "["+fmtSec(b.sec)+"] "+words;
           });
         }
@@ -3462,7 +3736,7 @@ HONEST LIMITS
           var buckets=secondBuckets();
           return buckets.map(function(b, i){
             var words=b.words.join(" ");
-            if(useEnglishLetters) words=romanize(words).replace(/\s+/g," ").trim();
+            if(useEnglishLetters) words=englishWordsForBucket(b);
             var end=(i+1<buckets.length)? buckets[i+1].sec : b.sec+2;
             return (i+1)+"\n"+srtTime(b.sec)+" --> "+srtTime(end)+"\n"+words;
           }).join("\n\n")+"\n";
@@ -3506,7 +3780,7 @@ HONEST LIMITS
           tmp.remove();
         }
         $("clear-btn").addEventListener("click", function(){
-          transcriptEl.value=""; state.entries=[]; renderEnglishView(); updateStats(); clearStatus(status2El);
+          transcriptEl.value=""; state.entries=[]; state.enChecked=null; state.wordsChecked=false; hideCheckCount(); renderEnglishView(); updateStats(); clearStatus(status2El);
         });
 
         /* ---------- the pack to take away (page + start file + computer helper) ---------- */
@@ -3521,6 +3795,7 @@ HONEST LIMITS
           var pr=q("#processing"); if(pr){ pr.classList.remove("show"); pr.setAttribute("aria-hidden","true"); }
           var pel=q("#proc-elapsed"); if(pel){ pel.textContent="00:00"; }
           var st2=q("#status2"); if(st2){ st2.innerHTML=""; st2.className="status"; }
+          var cc=q("#check-count"); if(cc){ cc.textContent=""; cc.style.display="none"; }
           var st3=q("#status3"); if(st3){ st3.innerHTML=""; st3.className="status"; }
           var ta=q("#transcript"); if(ta){ ta.textContent=""; }
           var te=q("#transcript-en"); if(te){ te.textContent=""; }

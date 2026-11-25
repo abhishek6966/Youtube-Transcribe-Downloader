@@ -18,12 +18,16 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/hero-banner.webp" alt="YouTube Transcribe Downloader — paste a link, get the exact words" width="100%" />
+  <img src="docs/images/hero-banner.gif" alt="YouTube Transcribe Downloader — paste a link, get the exact words" width="100%" />
 </p>
 
 <p align="center">
   <strong>🌐 Try it online — no install:</strong><br />
   <a href="https://abhishek6966.github.io/Youtube-Transcribe-Downloader/">https://abhishek6966.github.io/Youtube-Transcribe-Downloader/</a>
+</p>
+
+<p align="center">
+  <img src="docs/images/app-preview.webp" alt="The 3-step studio: landing, choose your way, and the side-by-side transcript panel" width="100%" />
 </p>
 
 ---

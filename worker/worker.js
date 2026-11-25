@@ -41,6 +41,64 @@ function json(data, status = 200) {
   });
 }
 
+// Sound-description cues — same lists as the web page, the Python pack
+// and the MCP server. A transcript holds only sung or spoken words;
+// [music], [संगीत], [गाना गाने की आवाज़], [हांफने की आवाज़] and the
+// rest are cleaned off at every step. A real sung line is never
+// touched, even if it mentions music: only bracketed marks and
+// cue-only lines are removed. (The worker has no romanizer: Devanagari
+// cues are caught by RAW_CUES below, Latin cue words match directly.)
+const CUE_WORDS = new Set(("music musica musik musique muzyka pauza eumak " +
+  "sangeet sangeeta sangeeth sangit dhun dhuna taal taaliyaan taaliyan hansee hansi " +
+  "viraama gaayana vaadya myoosik myoosika gaanaa gaane aavaaza haanphane shora " +
+  "pause tune applause laughter laughing cheering cheers singing humming instrumental " +
+  "interlude intro outro silence silent noise beep beeping clapping whispering murmuring " +
+  "chatter gasp gasping sigh sighing coughing crying sobbing shouting screaming ringing alarm " +
+  "footsteps thunder melody beat beats rhythm song songs blankaudio nospeech speech inaudible " +
+  "unintelligible crosstalk").split(" "));
+const CUE_FILLER = new Set(("soft loud background playing plays play played dramatic upbeat gentle " +
+  "slow melodic cheerful tense suspenseful rhythmic traditional continues continuing fades fading " +
+  "distant muffled echoing theme and the a an of in on no kee").split(" "));
+const RAW_CUES = ["संगीत", "धुन", "तालियाँ", "तालियां", "ताली", "हँसी", "हंसी", "विराम", "वाद्य",
+  "म्यूसिक", "म्यूज़िक", "गाना गाने की आवाज़", "हांफने की आवाज़", "शोर",
+  "موسيقى", "الموسيقى", "音楽", "음악", "音乐", "音樂", "blank_audio"];
+function isCueText(s) {
+  const raw = String(s || "").trim().toLowerCase();
+  if (!raw) return false;
+  if (raw.split(/\s+/).filter(Boolean).length <= 4) {
+    for (const r of RAW_CUES) if (raw.indexOf(r) >= 0) return true;
+  }
+  const words = raw.split(/\s+/).filter(Boolean);
+  let hasCue = false;
+  for (const w of words) {
+    if (CUE_WORDS.has(w)) hasCue = true;
+    else if (!CUE_FILLER.has(w)) return false;
+  }
+  return hasCue;
+}
+function stripCueMarks(text) {
+  let t = String(text || "").replace(/[♪♫]/g, " ");
+  t = t.replace(/\[([^\]]*)\]|\(([^)]*)\)/g, (m, b, p) =>
+    isCueText(b !== undefined ? b : p) ? " " : m);
+  // Split brackets: a cue cut across seconds leaves fragments like
+  // "[गाना" or "आवाज़]" — drop one only when its bracket-free text
+  // is itself a sound description.
+  const kept = [];
+  for (const tok of t.split(/\s+/)) {
+    if (!tok) continue;
+    if (/[\[\]]/.test(tok)) {
+      const inner = tok.replace(/[\[\]()]/g, "").trim();
+      if (inner && isCueText(inner)) continue;
+    }
+    kept.push(tok);
+  }
+  return kept.join(" ").replace(/\s+/g, " ").trim();
+}
+function stripLabels(text) {
+  const t = stripCueMarks(text);
+  return (t && isCueText(t)) ? "" : t;
+}
+
 function videoId(url) {
   try {
     const u = new URL(url);
@@ -82,7 +140,7 @@ async function captions(url, lang) {
   const lines = [];
   for (const ev of data.events || []) {
     if (!ev.segs) continue;
-    const text = ev.segs.map((s) => s.utf8 || "").join("").replace(/\n/g, " ").trim();
+    const text = stripLabels(ev.segs.map((s) => s.utf8 || "").join("").replace(/\n/g, " ").trim());
     if (text) lines.push({ start: (ev.tStartMs || 0) / 1000, text });
   }
   return json({ ok: true, language: track.languageCode, kind: track.kind || "standard", lines });
@@ -161,7 +219,7 @@ function parseStampedLines(text) {
     const start = m[3] !== undefined
       ? (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3])
       : (+m[1]) * 60 + (+m[2]);
-    const line = m[4].replace(/\s+/g, " ").trim();
+    const line = stripLabels(m[4].replace(/\s+/g, " ").trim());
     if (line) segs.push({ start, text: line });
   }
   return segs;
@@ -173,7 +231,7 @@ async function transcribeWithGemini(key, file, model, lang, title) {
   if (title) promptBits.push(`The video is titled "${title}". Use it for names of people, places and songs.`);
   promptBits.push(
     "Transcribe every word in this audio exactly as heard — names, fast lines and sung words included. " +
-    "Do not add words that are not sung or spoken. Never write sound descriptions like [music], [pause] or [sangeet] — words only, " +
+    "Do not add words that are not sung or spoken. Never write sound descriptions like [music], [pause], [संगीत], [गाना गाने की आवाज़] or [हांफने की आवाज़] — words only, " +
     "in the language they are sung or spoken in, never translated. " +
     "Write one line per few seconds, each line starting with its time as [MM:SS], for example [00:07] the words here."
   );
