@@ -54,13 +54,14 @@
         opacity:.42;filter:blur(3px) saturate(1.15)}
       .bg-veil{position:fixed;inset:0;z-index:0;pointer-events:none;
         background:color-mix(in srgb, var(--bg) 55%, transparent)}
-      .bg-row{display:flex;width:max-content;flex:none;will-change:transform;animation:driftR 72s linear infinite}
+      .bg-row{display:flex;width:max-content;flex:none;animation:driftR 72s linear infinite}
       .bg-row.rev{animation-name:driftL}
       .bg-row.slow{animation-duration:98s}
       .bg-group{display:flex;gap:20px;padding-right:20px;flex:none}
       @keyframes driftR{from{transform:translateX(-50%)}to{transform:translateX(0)}}
       @keyframes driftL{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-      .vcard{flex:none;width:228px;background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+      .bg-stage.paused .bg-row{animation-play-state:paused}
+      .vcard{flex:none;width:228px;background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden}
       .vthumb{position:relative;aspect-ratio:16/9}
       .vthumb .play{position:absolute;inset:0;margin:auto;width:52px;height:38px;border-radius:11px;background:var(--red);display:flex;align-items:center;justify-content:center}
       .vthumb .play svg{width:19px;height:19px;fill:#fff}
@@ -1475,7 +1476,13 @@ HONEST LIMITS
            three Invidious addresses named here had shut down entirely)
            stalled or sank the whole lookup even when the others were
            fine. */
-        var INVIDIOUS_HOSTS=["https://inv.nadeko.net","https://invidious.0011.lt","https://invidious.fdn.fr","https://invidious.privacyredirect.com"];
+        var INVIDIOUS_HOSTS=["https://inv.nadeko.net","https://invidious.privacyredirect.com","https://invidious.jing.rocks","https://invidious.reallyaweso.me","https://invidious.0011.lt","https://invidious.fdn.fr"];
+        /* A second, independent family of public servers (Piped): its
+           streams answer lists the same caption tracks with subtitle
+           files a page is allowed to read. Two families, raced
+           together, cover for each other - whichever public server is
+           healthy today is the one that answers. */
+        var PIPED_HOSTS=["https://api.piped.private.coffee","https://pipedapi.kavin.rocks","https://pipedapi.adminforge.de","https://pipedapi.leptons.xyz","https://pipedapi.dmatik.dev","https://pipedapi.syncpundit.io"];
         /* Race several promise factories: the first success wins, and
            the race only fails when every single one has failed. */
         function firstSuccess(factories){
@@ -2413,11 +2420,17 @@ HONEST LIMITS
               YouTube's homepage at runtime - no key of any kind
               lives in this page. Strongest route, and the only one
               fully under our control.
-           2. Public Invidious servers, all asked AT THE SAME TIME -
-              they serve the same caption tracks as subtitle files
-              and are built to let other pages read them. Racing them
-              means one dead or hanging mirror can no longer stall
-              or sink the lookup.
+           2. Two families of public servers, all asked AT THE SAME
+              TIME: Invidious mirrors and Piped servers. Both serve
+              the same caption tracks as subtitle files and are built
+              to let other pages read them. Racing two families means
+              one dead or hanging server can no longer stall or sink
+              the lookup - and each server gets one quiet retry,
+              because the busiest mirrors answer half their requests
+              with a temporary error and succeed on the very next try.
+              (That missing retry is why the transcript still failed
+              after the mirrors were fixed: the one healthy mirror
+              left was overloaded, and a single 502 ended the lookup.)
            3. The old caption list address, kept as a last try.
            A route that answers "this video has no captions" is
            believed; a route that cannot be reached is skipped for
@@ -2494,6 +2507,35 @@ HONEST LIMITS
             return { entries:entries, track:track };
           });
         }
+        /* Race caption attempts like firstSuccess, but remember a
+           positive "no captions" answer along the way: the race only
+           reports "notracks" when every attempt failed AND at least
+           one of them positively said the video has no captions. */
+        function raceCaptionAttempts(factories){
+          return new Promise(function(resolve, reject){
+            var pending=factories.length, settled=false, sawNoTracks=false, lastErr=null;
+            if(!pending){ reject(new Error("unreachable")); return; }
+            factories.forEach(function(f){
+              Promise.resolve().then(f).then(function(res){
+                if(!settled){ settled=true; resolve(res); }
+              }, function(e){
+                if(e && e.message==="notracks") sawNoTracks=true; else lastErr=e;
+                pending--;
+                if(!pending && !settled) reject(sawNoTracks? new Error("notracks") : (lastErr||new Error("unreachable")));
+              });
+            });
+          });
+        }
+        /* One quiet retry for the failures that are usually a server
+           hiccup - a 5xx, a dropped connection, a timeout. A positive
+           "no captions" or a 4xx is an answer, not a hiccup, and is
+           never retried. */
+        function retryTransient(fn){
+          return fn().catch(function(e){
+            if(e && (e.message==="notracks" || /^http 4/.test(e.message))) throw e;
+            return new Promise(function(res){ setTimeout(res, 900); }).then(fn);
+          });
+        }
         function captionsViaInvidious(id, lang){
           /* All mirrors are asked at once, not one after another: the
              old one-by-one chain let a single dead or hanging mirror
@@ -2501,28 +2543,72 @@ HONEST LIMITS
              even tried. The first mirror that returns real caption
              tracks wins. A mirror that answers "no tracks" settles
              the question only when no mirror found tracks. */
-          return new Promise(function(resolve, reject){
-            var pending=INVIDIOUS_HOSTS.length, settled=false, sawNoTracks=false, lastErr=null;
-            if(!pending){ reject(new Error("unreachable")); return; }
-            INVIDIOUS_HOSTS.forEach(function(base){
-              withTimeout(fetch(base+"/api/v1/captions/"+id), 12000)
-                .then(function(r){ if(!r.ok) throw new Error("http "+r.status); return r.json(); })
-                .then(function(d){
-                  var caps=(d&&d.captions)||[];
-                  if(!caps.length) throw new Error("notracks");
-                  var tracks=caps.map(function(c){ return { lang:c.languageCode||"", name:c.label||"", kind:/auto/i.test(c.label||"")? "asr" : "", url:(String(c.url||"").indexOf("http")===0? c.url : base+(c.url||"")) }; });
-                  return fetchFromTracks(id, lang, tracks, function(track){
-                    return withTimeout(fetch(track.url), 12000).then(function(r){ if(!r.ok) throw new Error("http "+r.status); return r.text(); }).then(parseSubtitleText);
+          return raceCaptionAttempts(INVIDIOUS_HOSTS.map(function(base){
+            return function(){
+              return retryTransient(function(){
+                return withTimeout(fetch(base+"/api/v1/captions/"+id), 10000)
+                  .then(function(r){ if(!r.ok) throw new Error("http "+r.status); return r.json(); })
+                  .then(function(d){
+                    var caps=(d&&d.captions)||[];
+                    if(!caps.length) throw new Error("notracks");
+                    var tracks=caps.map(function(c){ return { lang:c.languageCode||"", name:c.label||"", kind:/auto/i.test(c.label||"")? "asr" : "", url:(String(c.url||"").indexOf("http")===0? c.url : base+(c.url||"")) }; });
+                    return fetchFromTracks(id, lang, tracks, function(track){
+                      return withTimeout(fetch(track.url), 10000).then(function(r){ if(!r.ok) throw new Error("http "+r.status); return r.text(); }).then(parseSubtitleText);
+                    });
                   });
-                })
-                .then(function(res){ if(!settled){ settled=true; resolve(res); } },
-                function(e){
-                  if(e && e.message==="notracks") sawNoTracks=true; else lastErr=e;
-                  pending--;
-                  if(!pending && !settled) reject(sawNoTracks? new Error("notracks") : (lastErr||new Error("unreachable")));
-                });
-            });
-          });
+              });
+            };
+          }));
+        }
+        function parseTtml(text){
+          /* Piped's subtitle files arrive as TTML when the format
+             cannot be switched to WebVTT - same words, other wrapper:
+             <p begin="0.4s" end="3.35s">line</p>. */
+          var doc=new DOMParser().parseFromString(text,"text/xml");
+          var nodes=doc.querySelectorAll("p"), out=[];
+          function tsec(v){
+            if(!v) return 0;
+            v=String(v).trim();
+            if(/s$/.test(v)) return parseFloat(v)||0;
+            return parseTimeToken(v);
+          }
+          for(var i=0;i<nodes.length;i++){
+            var txt=(nodes[i].textContent||"").replace(/\s+/g," ").trim();
+            if(!txt) continue;
+            var st=tsec(nodes[i].getAttribute("begin")), en=tsec(nodes[i].getAttribute("end"));
+            out.push({ start:st, dur:Math.max(0.5,(en>st? en-st : 2)), text:txt });
+          }
+          return out;
+        }
+        function captionsViaPiped(id, lang){
+          /* The second public family. A Piped server's streams answer
+             lists the video's caption tracks with ready-to-read
+             subtitle files; the files are asked for as WebVTT (the
+             format switch is not part of the signed address, so the
+             server honours it), with the TTML original understood
+             too. Raced against the Invidious mirrors, so whichever
+             family is healthy today is the one that answers. */
+          return raceCaptionAttempts(PIPED_HOSTS.map(function(base){
+            return function(){
+              return retryTransient(function(){
+                return withTimeout(fetch(base+"/streams/"+id), 10000)
+                  .then(function(r){ if(!r.ok) throw new Error("http "+r.status); return r.json(); })
+                  .then(function(d){
+                    if(!d || d.error) throw new Error("unreachable");
+                    var subs=(d.subtitles||[]).filter(function(s){ return s && s.url; });
+                    if(!subs.length) throw new Error("notracks");
+                    var tracks=subs.map(function(s){ return { lang:s.code||"", name:s.name||"", kind:s.autoGenerated? "asr" : "", url:s.url }; });
+                    return fetchFromTracks(id, lang, tracks, function(track){
+                      var u=track.url;
+                      if(/fmt=ttml/.test(u)) u=u.replace("fmt=ttml","fmt=vtt");
+                      else if(!/[?&]fmt=/.test(u)) u+=(u.indexOf("?")>=0? "&" : "?")+"fmt=vtt";
+                      return withTimeout(fetch(u), 10000).then(function(r){ if(!r.ok) throw new Error("http "+r.status); return r.text(); })
+                        .then(function(t){ return /<tt[\s>]/.test(t.slice(0,600))? parseTtml(t) : parseSubtitleText(t); });
+                    });
+                  });
+              });
+            };
+          }));
         }
         function captionsViaLegacy(id, lang){
           return fetchText("https://www.youtube.com/api/timedtext?v="+id+"&type=list").then(function(xml){
@@ -2537,9 +2623,13 @@ HONEST LIMITS
         function getCaptions(id, lang){
           var sawNoTracks=false;
           function note(e){ if(e && e.message==="notracks") sawNoTracks=true; }
+          var pub=raceCaptionAttempts([
+            function(){ return captionsViaInvidious(id, lang); },
+            function(){ return captionsViaPiped(id, lang); }
+          ]);
           var chain=WORKER_URL?
-            captionsViaWorker(id, lang).catch(function(e){ note(e); return captionsViaInvidious(id, lang); }) :
-            captionsViaInvidious(id, lang);
+            captionsViaWorker(id, lang).catch(function(e){ note(e); return pub; }) :
+            pub;
           return chain.catch(function(e){
             note(e);
             return captionsViaLegacy(id, lang);
@@ -3022,6 +3112,12 @@ HONEST LIMITS
             }
             stage.appendChild(row);
           }
+          /* The drift is decoration: a hidden tab does not need it
+             moving. Pausing there keeps the page light while the
+             user is off doing something else. */
+          document.addEventListener("visibilitychange", function(){
+            stage.classList.toggle("paused", document.hidden);
+          });
         })();
         function show(n){
           [1,2,3].forEach(function(i){
