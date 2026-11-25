@@ -47,14 +47,23 @@
 
       /* ---------- Drifting video-card background (every step) ----------
          Rows of curved YouTube-style video cards drift forever, alternate
-         rows in opposite directions. Kept faded and blurred, behind
-         everything, and never clickable, so text and buttons stay clear. */
+         rows in opposite directions. Kept faded behind everything, and
+         never clickable, so text and buttons stay clear.
+         PERFORMANCE: there is deliberately NO filter:blur() here. A blur
+         on this full-screen layer forced the browser to re-blur the
+         whole viewport on every animation frame while the rows moved,
+         which lagged the entire device. The soft, frosted look now comes
+         from cheap, static pieces instead: the cards sit at low opacity
+         under .bg-veil, a plain translucent wash of the page colour that
+         is painted once and never recomputed. The rows only animate
+         transform, so the drift is a texture shift on the GPU and costs
+         almost nothing per frame. */
       .bg-stage{position:fixed;inset:-24px 0;z-index:0;overflow:hidden;pointer-events:none;
         display:flex;flex-direction:column;justify-content:space-evenly;gap:22px;
-        opacity:.42;filter:blur(3px) saturate(1.15)}
+        opacity:.38}
       .bg-veil{position:fixed;inset:0;z-index:0;pointer-events:none;
-        background:color-mix(in srgb, var(--bg) 55%, transparent)}
-      .bg-row{display:flex;width:max-content;flex:none;animation:driftR 72s linear infinite}
+        background:color-mix(in srgb, var(--bg) 62%, transparent)}
+      .bg-row{display:flex;width:max-content;flex:none;will-change:transform;animation:driftR 72s linear infinite}
       .bg-row.rev{animation-name:driftL}
       .bg-row.slow{animation-duration:98s}
       .bg-group{display:flex;gap:20px;padding-right:20px;flex:none}
@@ -3080,7 +3089,9 @@ HONEST LIMITS
         }
         /* Drifting video-card background: four rows of curved YouTube-style
            cards, alternate rows drifting opposite ways, looping forever.
-           Pure CSS shapes (no downloads), faded and blurred behind the app. */
+           Pure CSS shapes (no downloads), faded behind the app under a
+           translucent wash - no blur filter, which would force a
+           full-screen re-blur on every frame and lag the device. */
         (function buildBg(){
           var stage=$("bg-stage"); if(!stage) return;
           var themes=[
