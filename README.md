@@ -1,7 +1,24 @@
+<p align="center">
+  <img src="docs/images/logo.webp" alt="YouTube Transcribe Downloader logo" width="180" />
+</p>
+
 <h1 align="center">YouTube Transcribe Downloader</h1>
 
 <p align="center">
   <strong>Paste a YouTube link. Get the exact words — second by second, in the original language, and in English letters with the right pronunciation.</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Quick%20Start-2%20steps-8B5CF6?style=for-the-badge" alt="Quick Start: 2 steps" />
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-1F2937?style=for-the-badge" alt="Platform: Windows, macOS, Linux" />
+  <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" />
+  <img src="https://img.shields.io/badge/License-MIT-EC4899?style=for-the-badge" alt="License: MIT" />
+  <img src="https://img.shields.io/badge/No%20account%20needed-100%25%20free-10B981?style=for-the-badge" alt="No account needed, 100% free" />
+  <img src="https://img.shields.io/badge/MCP%20server-Claude%20%7C%20Cursor%20%7C%20VS%20Code-7C3AED?style=for-the-badge" alt="MCP server: Claude, Cursor, VS Code" />
+</p>
+
+<p align="center">
+  <img src="docs/images/hero-banner.webp" alt="YouTube Transcribe Downloader — paste a link, get the exact words" width="100%" />
 </p>
 
 <p align="center">
@@ -10,8 +27,6 @@
 </p>
 
 ---
-
-## See it in action
 
 ## What is this?
 
@@ -73,6 +88,14 @@ A plain web page cannot pull the sound out of a YouTube video, and Groq / OpenAI
 <p align="center">
   <strong>One file. No install beyond Python. Any assistant, any project — just ask for the words.</strong><br />
   <em>"Transcribe this video"</em> — and the assistant gets the same clean, timed transcript the website gives.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Claude%20Desktop-ready-7C3AED?style=for-the-badge" alt="Claude Desktop ready" />
+  <img src="https://img.shields.io/badge/Cursor-ready-1F2937?style=for-the-badge" alt="Cursor ready" />
+  <img src="https://img.shields.io/badge/VS%20Code-ready-0078D4?style=for-the-badge" alt="VS Code ready" />
+  <img src="https://img.shields.io/badge/Claude%20Code-ready-D97757?style=for-the-badge" alt="Claude Code ready" />
+  <img src="https://img.shields.io/badge/Python-3.10%2B%20only%2C%20no%20packages-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+ only, no packages" />
 </p>
 
 The server is a single file — [`mcp-server/server.py`](mcp-server/server.py) — pure Python standard library, nothing to install. It speaks MCP (JSON-RPC over stdio) and gives any MCP client two tools:
