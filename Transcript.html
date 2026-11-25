@@ -665,7 +665,9 @@
             <div class="panel" aria-label="Transcript">
               <h2>Your transcript</h2>
               <label class="field" for="transcript">The words</label>
-              <textarea id="transcript" placeholder="The words will appear here. You can also paste words here yourself." spellcheck="false"></textarea>
+              <textarea id="transcript" placeholder="The words will appear here, second by second, each line with its time. You can also paste words here yourself." spellcheck="false"></textarea>
+              <label class="field" for="transcript-en" style="margin-top:10px">The same words in English letters</label>
+              <textarea id="transcript-en" readonly placeholder="The same words will appear here in English letters, spelled the way they sound, with the same times - so you can read them aloud." spellcheck="false" style="background:var(--surface-2)"></textarea>
               <p class="hint" style="margin-top:8px">Already have the words in a file?
                 <button type="button" class="linklike" id="file-btn">Add them from a file</button>
                 <input type="file" id="file-input" class="sr-only" accept=".srt,.vtt,.txt,text/plain" />
@@ -878,6 +880,21 @@ def parse_clock(tok):
         return int(parts[0])*60 + float(parts[1])
     return float(tok)
 
+# Sound descriptions are not words: caption tracks and listening models
+# write them too - [संगीत], [music], (pause), ♪ tune ♪ - and they never
+# belong in a transcript. clean_cues takes them out, in any language,
+# while real sung words are left untouched; a line that is ONLY a
+# sound description disappears completely.
+CUE_BRACKET = re.compile(r"[\[(][^\])]*(?:संगीत|म्यूसिक|म्यूज़िक|धुन|ताल|हँसी|विराम|music|música|musica|musik|musique|موسیقى|音楽|음악|音乐|音樂|pause|applause|laughter|cheering|singing|instrumental|interlude|silence|blank_audio|tune|sangeet)[^\])]*[\])]", re.I)
+CUE_ONLY = re.compile(r"^(?:संगीत|म्यूसिक|म्यूज़िक|धुन|music|música|musica|musik|musique|pause|tune|sangeet|dhun|applause|laughter|instrumental|silence|song|blank_audio)$", re.I)
+def clean_cues(text):
+    text = text.replace("♪", " ").replace("♫", " ")
+    text = CUE_BRACKET.sub(" ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if CUE_ONLY.match(text):
+        return ""
+    return text
+
 def try_captions(vid, lang):
     """Download subtitle file with yt-dlp. Returns list of (start, end, text) or None."""
     base = OUT / vid
@@ -899,6 +916,7 @@ def try_captions(vid, lang):
                 txt = re.sub(r"<[^>]+>", "", line).strip()
                 if txt and (not entries[-1][2] or txt != entries[-1][2]):
                     entries[-1][2] = (entries[-1][2] + " " + txt).strip()
+        entries = [[s, e, clean_cues(t)] for s, e, t in entries]
         entries = [e for e in entries if e[2]]
         if entries:
             kind = "auto captions" if "auto" in f.name else "captions"
@@ -943,10 +961,13 @@ def transcribe_audio(vid, lang):
         words = getattr(s, "words", None)
         if words:
             for w in words:
-                if w.word.strip():
-                    events.append((w.start, w.word.strip()))
+                # A single word only loses bracket / ♪ marks - it is
+                # never dropped as a whole cue, it may truly be sung.
+                cw = CUE_BRACKET.sub("", w.word.replace("♪", " ").replace("♫", " ")).strip()
+                if cw:
+                    events.append((w.start, cw))
         else:
-            parts = s.text.strip().split()
+            parts = clean_cues(s.text.strip()).split()
             span = max(0.5, (s.end or s.start + 2) - s.start)
             for i, w in enumerate(parts):
                 events.append((s.start + span * i / max(1, len(parts)), w))
@@ -2089,6 +2110,7 @@ HONEST LIMITS
               "- Fix words that are clearly misheard or misspelled, and fix punctuation.\n"+
               "- Spell names of people, places and brands correctly, using the title when it helps.\n"+
               "- Never add a word that was not heard. If a sung or fast word is unclear, keep the original word - never guess a new one into its place.\n"+
+              "- Sound descriptions like [music], [pause] or [संगीत] are not words: if one slipped into a line, take it out and keep the line's real words. Never add one.\n"+
               "- Never drop words, never merge or split lines.\n"+
               "Keep the exact same number of lines, in the same order, in the same language and same writing. Do not translate. Reply with only the corrected lines, no explanation.";
             return aiChat(promptText).then(function(text){
@@ -2113,6 +2135,11 @@ HONEST LIMITS
           return runChunk(0);
         }
         function aiPolishEntries(){
+          if(!state.entries.length) return Promise.resolve(false);
+          /* Safety net: no sound description ever reaches the checker,
+             whatever route the words arrived by. */
+          state.entries.forEach(function(e){ e.text=stripLabels(e.text); });
+          state.entries=state.entries.filter(function(e){ return e.text; });
           if(!state.entries.length) return Promise.resolve(false);
           var lines=state.entries.map(function(e){ return e.text; });
           return polishLines(lines).then(function(out){
@@ -2151,7 +2178,23 @@ HONEST LIMITS
             setStatus(status2El,"err","Connect a key in Step 2 first - then this button checks the words for you, online.");
             return;
           }
-          var lines=currentLines();
+          /* The box shows each line with its [mm:ss] stamp. The stamps
+             are lifted off before the check (the checker should only
+             ever see words) and put back on the checked lines after -
+             by rebuilding timed entries from the stamps when the lines
+             no longer line up with the fetched entries one to one. */
+          /* Sound descriptions are not words: clean them off before
+             the check, whichever way the words arrived - a fetched
+             transcript is rebuilt from its cleaned entries, pasted
+             words are cleaned line by line - so the checker only ever
+             sees real words and can never hand a description back. */
+          if(state.entries.length){
+            state.entries.forEach(function(e){ e.text=stripLabels(e.text); });
+            state.entries=state.entries.filter(function(e){ return e.text; });
+            renderEntries();
+          }
+          var parsed=currentLines().map(splitStamp).map(function(p){ return { stamp:p.stamp, sec:p.sec, text:stripLabels(p.text) }; }).filter(function(p){ return p.text; });
+          var lines=parsed.map(function(p){ return p.text; });
           if(!lines.length){
             setStatus(status2El,"err","There are no words here yet. Get the words from a video first, or paste them in the box.");
             return;
@@ -2167,9 +2210,13 @@ HONEST LIMITS
             if(state.entries.length && state.entries.length===out.length){
               state.entries.forEach(function(e, i){ e.text=out[i]; });
               renderEntries();
+            }else if(out.length===parsed.length && parsed.every(function(p){ return p.sec!=null; })){
+              state.entries=out.map(function(l, i){ return { start:parsed[i].sec, dur:1, text:l }; });
+              renderEntries();
             }else{
               state.entries=[];
               transcriptEl.value=out.join("\n");
+              renderEnglishView();
               updateStats();
             }
             setStatus(status2El,"ok","Checked by "+prettyModel(ai.chatModel)+" from "+ai.provider.name+" - clear mistakes fixed, same lines, same order, same language. Now save both files.");
@@ -2203,15 +2250,31 @@ HONEST LIMITS
             candidates=candidates.filter(function(m){ return m!==ai.audioModel; });
             candidates.unshift(ai.audioModel);
           }
-          function attemptAudio(idx){
+          function attemptAudio(idx, withWords){
             var form=new FormData();
             form.append("file", file);
             form.append("model", candidates[idx]);
             form.append("response_format", "verbose_json");
             form.append("temperature", "0");
+            /* Ask for the exact time of every word, not just of each
+               segment: the lines can then be matched to the video word
+               by word, second by second. A model that refuses the word
+               timings is simply asked again without them (the retry at
+               the bottom), so asking never costs a working model. */
+            if(withWords){
+              form.append("timestamp_granularities[]", "segment");
+              form.append("timestamp_granularities[]", "word");
+            }
             /* The title is the best name hint there is: it carries the
-               people, places and song names the model must get right. */
-            if(state.title) form.append("prompt", state.title+". Transcribe every word exactly as heard - names, fast lines and sung words included. Do not add words that are not sung or spoken.");
+               people, places and song names the model must get right.
+               The model is also told plainly: words only - no sound
+               descriptions like [music], [pause] or [संगीत], and never
+               a translation; the words stay in the language they are
+               sung or spoken in. */
+            var promptBits=[];
+            if(state.title) promptBits.push(state.title+".");
+            promptBits.push("Transcribe every word exactly as heard - names, fast lines and sung words included. Do not add words that are not sung or spoken. Never write sound descriptions like [music], [pause] or [संगीत] - words only, in the language they are sung or spoken in, never translated.");
+            form.append("prompt", promptBits.join(" "));
             if(lang) form.append("language", lang);
             return withTimeout(fetch(ai.provider.base+"/audio/transcriptions", {
               method:"POST",
@@ -2221,20 +2284,28 @@ HONEST LIMITS
               ai.audioModel=candidates[idx];
               return d;
             }).catch(function(err){
-              if(idx+1<candidates.length) return attemptAudio(idx+1);
+              if(idx+1<candidates.length) return attemptAudio(idx+1, withWords);
+              if(withWords) return attemptAudio(0, false);
               throw err;
             });
           }
-          attemptAudio(0).then(function(d){
+          attemptAudio(0, true).then(function(d){
             var entries=[];
-            if(d.segments && d.segments.length){
+            /* Word timings first: when the model reports the exact
+               second of each word, the entries are built from those
+               real times. Segments are the fallback. Either way the
+               sound descriptions are cleaned off as the entries are
+               built, so they never reach the screen or the files. */
+            if(d.words && d.words.length) entries=entriesFromWords(d.words);
+            if(!entries.length && d.segments && d.segments.length){
               d.segments.forEach(function(s){
-                var txt=String(s.text||"").replace(/\s+/g," ").trim();
+                var txt=stripLabels(String(s.text||"").replace(/\s+/g," ").trim());
                 if(txt) entries.push({ start:+s.start||0, dur:Math.max(0.5,(+s.end||0)-(+s.start||0)), text:txt });
               });
             }
             if(!entries.length && d.text){
-              entries=[{ start:0, dur:2, text:String(d.text).replace(/\s+/g," ").trim() }];
+              var whole=stripLabels(String(d.text).replace(/\s+/g," ").trim());
+              if(whole) entries=[{ start:0, dur:2, text:whole }];
             }
             if(!entries.length) throw new Error("empty");
             state.entries=entries;
@@ -2292,16 +2363,20 @@ HONEST LIMITS
             body:JSON.stringify(payload)
           }), 240000).then(jsonOrThrow).then(function(d){
             var entries=[];
+            /* Word timings when the worker sends them, segments
+               otherwise - and sound descriptions cleaned off either
+               way, exactly as on every other route. */
+            if(d.words && d.words.length) entries=entriesFromWords(d.words);
             var segs=d.segments||d.entries||[];
-            segs.forEach(function(s){
-              var txt=String(s.text||"").replace(/\s+/g," ").trim();
+            if(!entries.length) segs.forEach(function(s){
+              var txt=stripLabels(String(s.text||"").replace(/\s+/g," ").trim());
               if(!txt) return;
               var st=+s.start||0;
               var en=(s.end!=null? +s.end : st+(+s.dur||2));
               entries.push({ start:st, dur:Math.max(0.5, en-st), text:txt });
             });
             if(!entries.length && d.text){
-              var whole=String(d.text).replace(/\s+/g," ").trim();
+              var whole=stripLabels(String(d.text).replace(/\s+/g," ").trim());
               if(whole) entries=[{ start:0, dur:2, text:whole }];
             }
             if(!entries.length) throw new Error("empty");
@@ -2356,7 +2431,7 @@ HONEST LIMITS
           var doc=new DOMParser().parseFromString(xmlText,"text/xml");
           var nodes=doc.querySelectorAll("text"), out=[];
           for(var i=0;i<nodes.length;i++){
-            var txt=(nodes[i].textContent||"").replace(/\s+/g," ").trim();
+            var txt=stripLabels((nodes[i].textContent||"").replace(/\s+/g," ").trim());
             if(!txt) continue;
             out.push({
               start:parseFloat(nodes[i].getAttribute("start")||"0"),
@@ -2502,7 +2577,7 @@ HONEST LIMITS
             var lines=d.lines||[];
             var entries=[];
             for(var i=0;i<lines.length;i++){
-              var txt=String(lines[i].text||"").replace(/\s+/g," ").trim();
+              var txt=stripLabels(String(lines[i].text||"").replace(/\s+/g," ").trim());
               if(!txt) continue;
               var st=+lines[i].start||0;
               var nx=(i+1<lines.length)? (+lines[i+1].start||st+2) : st+2;
@@ -2582,7 +2657,7 @@ HONEST LIMITS
             return parseTimeToken(v);
           }
           for(var i=0;i<nodes.length;i++){
-            var txt=(nodes[i].textContent||"").replace(/\s+/g," ").trim();
+            var txt=stripLabels((nodes[i].textContent||"").replace(/\s+/g," ").trim());
             if(!txt) continue;
             var st=tsec(nodes[i].getAttribute("begin")), en=tsec(nodes[i].getAttribute("end"));
             out.push({ start:st, dur:Math.max(0.5,(en>st? en-st : 2)), text:txt });
@@ -2721,9 +2796,43 @@ HONEST LIMITS
           function p(n){ return String(n).padStart(2,"0"); }
           return h>0? (p(h)+":"+p(m)+":"+p(s)) : (p(m)+":"+p(s));
         }
+        /* The words are shown WITH their times - one line per second,
+           [mm:ss] first, exactly like the saved files. (This used to
+           write only the bare words into the box and throw the times
+           away, which is why the transcript on screen never showed a
+           single timestamp even though every route had fetched them.) */
         function renderEntries(){
-          transcriptEl.value=state.entries.map(function(e){ return e.text; }).join("\n");
+          transcriptEl.value=timedLines(false).join("\n");
+          renderEnglishView();
           updateStats();
+        }
+        /* Split a leading [mm:ss] (or [h:mm:ss]) stamp off a line. */
+        var STAMP_RE=/^\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]\s+/;
+        function splitStamp(line){
+          var m=String(line).match(STAMP_RE);
+          if(!m) return { stamp:null, sec:null, text:String(line) };
+          if(m[3]!==undefined) return { stamp:m[1]+":"+m[2]+":"+m[3], sec:(+m[1])*3600+(+m[2])*60+(+m[3]), text:String(line).slice(m[0].length) };
+          return { stamp:m[1]+":"+m[2], sec:(+m[1])*60+(+m[2]), text:String(line).slice(m[0].length) };
+        }
+        /* The second box: the same words in English letters, spelled
+           the way they sound, line for line with the SAME times as the
+           box above - so the pronunciation can be read aloud against
+           the video. Built from whatever the words box currently
+           shows, so it follows fetches, file adds, checks and edits. */
+        function renderEnglishView(){
+          var enEl=$("transcript-en"); if(!enEl) return;
+          var out=[], idx=0;
+          transcriptEl.value.split(/\r?\n/).forEach(function(raw){
+            var line=raw.trim(); if(!line) return;
+            var p=splitStamp(line);
+            var words=stripLabels(p.text);
+            if(words){
+              var rom=romanize(words).replace(/\s+/g," ").trim();
+              out.push("["+(p.stamp||fmtSec(idx))+"] "+(rom||words));
+            }
+            idx++;
+          });
+          enEl.value=out.join("\n");
         }
         function currentLines(){
           return transcriptEl.value.split(/\r?\n/).map(function(l){ return l.trim(); }).filter(function(l){ return l.length; });
@@ -2731,6 +2840,7 @@ HONEST LIMITS
         function updateStats(){ /* the words area speaks for itself - nothing extra to show */ }
         transcriptEl.addEventListener("input", function(){
           if(state.entries.length && transcriptEl.value.trim()==="") state.entries=[];
+          renderEnglishView();
           updateStats();
         });
 
@@ -2748,6 +2858,7 @@ HONEST LIMITS
             }else{
               state.entries=[];
               transcriptEl.value=String(reader.result||"");
+              renderEnglishView();
               updateStats();
               setStatus(status2El,"ok","Added your file. You can save it below.");
             }
@@ -2770,19 +2881,119 @@ HONEST LIMITS
             if(ti<0) continue;
             timeLine=lines[ti].split("-->");
             start=parseTimeToken(timeLine[0]); end=parseTimeToken(timeLine[1].trim().split(/\s+/)[0]);
-            body=lines.slice(ti+1).join(" ").replace(/<[^>]+>/g,"").replace(/\s+/g," ").trim();
-            if(body) entries.push({ start:start, dur:Math.max(0.5,end-start), text:body });
+            var rawBody=lines.slice(ti+1).join(" ");
+            /* Some caption files - YouTube's own auto-captions above
+               all - carry the exact time of every single word inside
+               the line, like <00:00:01.200>. Lift those times out
+               before the tags are stripped away, so the words can be
+               placed at their real seconds, word by word. */
+            var stamps=[];
+            var marked=rawBody.replace(/<(\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d+)?)>/g, function(m, ts){ stamps.push(parseTimeToken(ts)); return " "; });
+            body=stripLabels(marked.replace(/<[^>]+>/g,"").replace(/\s+/g," ").trim());
+            if(body){
+              var entry={ start:start, dur:Math.max(0.5,end-start), text:body };
+              var ws=body.split(/\s+/);
+              if(stamps.length===ws.length) entry.wt=stamps;
+              else if(stamps.length===ws.length-1) entry.wt=[start].concat(stamps);
+              entries.push(entry);
+            }
           }
           return entries;
         }
 
-        /* ---------- tidy the words (sensible defaults, nothing to choose) ---------- */
+        /* ---------- tidy the words (sensible defaults, nothing to choose) ----------
+           A transcript should hold only the words that are sung or
+           spoken. Caption tracks and listening models also write sound
+           descriptions - [music], (pause), [संगीत], ♪ tune ♪ - and
+           those are not words, so they are cleaned off at every step:
+           when entries are built, when the lines are grouped by
+           second, and when the English-letters version is made.
+           The check is done on the English-letters spelling of the
+           words, so संगीत, sangeet, música and music all match the
+           same cue list, in brackets or standing alone. A line that
+           is ONLY a sound description disappears completely; a real
+           sung line is never touched, even if it mentions music. */
+        var CUE_WORDS={ music:1, musica:1, musik:1, musique:1, muzyka:1, pauza:1, eumak:1,
+          sangeet:1, sangeeta:1, sangeeth:1, sangit:1, dhun:1, dhuna:1, taal:1, taaliyaan:1, taaliyan:1,
+          hansee:1, hansi:1, viraama:1, gaayana:1, vaadya:1, myoosik:1, myoosika:1,
+          pause:1, tune:1, applause:1, laughter:1, laughing:1, cheering:1, cheers:1,
+          singing:1, humming:1, instrumental:1, interlude:1, intro:1, outro:1,
+          silence:1, silent:1, noise:1, beep:1, beeping:1, clapping:1, whispering:1,
+          murmuring:1, chatter:1, gasp:1, gasping:1, sigh:1, sighing:1, coughing:1,
+          crying:1, sobbing:1, shouting:1, screaming:1, ringing:1, alarm:1,
+          footsteps:1, thunder:1, melody:1, beat:1, beats:1, rhythm:1, song:1, songs:1,
+          blankaudio:1, nospeech:1, speech:1, inaudible:1, unintelligible:1, crosstalk:1 };
+        var CUE_FILLER={ soft:1, loud:1, background:1, playing:1, plays:1, play:1, played:1,
+          dramatic:1, upbeat:1, gentle:1, slow:1, melodic:1, cheerful:1, tense:1,
+          suspenseful:1, rhythmic:1, traditional:1, continues:1, continuing:1,
+          fades:1, fading:1, distant:1, muffled:1, echoing:1, theme:1,
+          and:1, the:1, a:1, an:1, of:1, in:1, on:1, no:1 };
+        /* Cue words in scripts whose endings are written onto the word
+           itself, so they are matched as part of a short line. */
+        var RAW_CUES=["संगीत","धुन","तालियाँ","तालियां","ताली","हँसी","हंसी","विराम","वाद्य","म्यूसिक","म्यूज़िक",
+          "موسيقى","الموسيقى","音楽","음악","音乐","音樂","blank_audio"];
+        function cueNorm(s){
+          return romanize(String(s||"").toLowerCase().replace(/_/g,"")).replace(/[^a-z]+/g," ").replace(/\s+/g," ").trim();
+        }
+        function isCueText(s){
+          var raw=String(s||"").trim().toLowerCase();
+          if(!raw) return false;
+          if(raw.split(/\s+/).filter(Boolean).length<=4){
+            for(var r=0;r<RAW_CUES.length;r++){ if(raw.indexOf(RAW_CUES[r])>=0) return true; }
+          }
+          var norm=cueNorm(raw);
+          if(!norm) return false;
+          var words=norm.split(" "), hasCue=false;
+          for(var i=0;i<words.length;i++){
+            if(CUE_WORDS[words[i]]) hasCue=true;
+            else if(!CUE_FILLER[words[i]]) return false;
+          }
+          return hasCue;
+        }
+        /* Bracketed and bracket-less sound marks only - a single real
+           word is never dropped by this one, even a cue word, because
+           inside a line it may truly be sung. */
+        function stripCueMarks(text){
+          var t=String(text||"").replace(/[♪♫]/g," ");
+          t=t.replace(/\[([^\]]*)\]|\(([^)]*)\)/g, function(m, b, p){
+            return isCueText(b!==undefined? b : p)? " " : m;
+          });
+          return t.replace(/\s+/g," ").trim();
+        }
         function stripLabels(text){
-          return text.replace(/\[(music|applause|laughter|cheering|singing|instrumental)[^\]]*\]/gi,"").replace(/\s+/g," ").trim();
+          var t=stripCueMarks(text);
+          if(t && isCueText(t)) return "";
+          return t;
+        }
+        /* Build entries from a listening model's per-word timings:
+           words are grouped into short lines at real pauses, and every
+           word keeps the exact second it was sung or spoken (entry.wt),
+           so the second-by-second lines place each word where it truly
+           falls - no even spreading. Sound marks are cleaned word by
+           word as the entries are built. */
+        function entriesFromWords(words){
+          var entries=[], cur=null, curEnd=0;
+          (words||[]).forEach(function(wd){
+            if(!wd) return;
+            var wtext=stripCueMarks(String(wd.word!=null? wd.word : (wd.text||"")).replace(/\s+/g," ").trim());
+            var st=+wd.start||0;
+            var en=(wd.end!=null && +wd.end>st)? +wd.end : st+0.3;
+            if(!wtext) return;
+            if(!cur || st-curEnd>0.6 || en-cur.start>3.2 || cur.wt.length>=12){
+              cur={ start:st, dur:Math.max(0.3, en-st), text:wtext, wt:[st] };
+              entries.push(cur);
+            }else{
+              cur.text+=" "+wtext;
+              cur.wt.push(st);
+              cur.dur=Math.max(cur.dur, en-cur.start);
+            }
+            curEnd=Math.max(curEnd, en);
+          });
+          return entries;
         }
         function cleanedLines(){
           var lines;
-          if(state.entries.length && transcriptEl.value===state.entries.map(function(e){ return e.text; }).join("\n")){
+          if(state.entries.length && transcriptEl.value===timedLines(false).join("\n")){
             lines=state.entries.map(function(e){ return e.text; });
           }else{
             lines=currentLines().map(function(l){
@@ -2808,7 +3019,15 @@ HONEST LIMITS
               var words=stripLabels(e.text).split(/\s+/).filter(Boolean);
               var dur=e.dur||2;
               words.forEach(function(w, idx){
-                var t=e.start+(words.length>1? dur*idx/words.length : 0);
+                /* Real word times win: when the entry carries the
+                   exact second of every word (entry.wt, from a
+                   listening model or a word-timed caption file) each
+                   word is placed at its own second. Only entries
+                   without word times have their words spread evenly
+                   across the line's span. If the words were edited
+                   after the timings were taken, the counts no longer
+                   match and the even spread takes over again. */
+                var t=(e.wt && e.wt.length===words.length)? e.wt[idx] : e.start+(words.length>1? dur*idx/words.length : 0);
                 addWord(Math.floor(t), w);
               });
             });
@@ -2917,16 +3136,18 @@ HONEST LIMITS
         function fileHeader(){
           return (state.title? state.title+"\n":"")+(state.videoId? "https://www.youtube.com/watch?v="+state.videoId+"\n":"")+"\n";
         }
-        function buildTimedFile(useEnglishLetters){
-          var lines=secondBuckets().map(function(b){
+        /* One line per second, [mm:ss] first - the single shape the
+           words box, the English-letters box and both saved files all
+           share, so what is on screen is exactly what gets saved. */
+        function timedLines(useEnglishLetters){
+          return secondBuckets().map(function(b){
             var words=b.words.join(" ");
             if(useEnglishLetters) words=romanize(words).replace(/\s+/g," ").trim();
             return "["+fmtSec(b.sec)+"] "+words;
           });
-          return fileHeader()+lines.join("\n")+"\n";
         }
-        function buildPlainText(){
-          return fileHeader()+cleanedLines().join("\n")+"\n";
+        function buildTimedFile(useEnglishLetters){
+          return fileHeader()+timedLines(useEnglishLetters).join("\n")+"\n";
         }
         function download(name, text, mime){
           var blob=new Blob([text], {type:(mime||"text/plain")+";charset=utf-8"});
@@ -2950,7 +3171,8 @@ HONEST LIMITS
         });
         $("copy-btn").addEventListener("click", function(){
           if(!needText()) return;
-          var text=buildPlainText();
+          /* Copy exactly what the box shows - the words with their times. */
+          var text=transcriptEl.value.replace(/\s+$/,"")+"\n";
           function done(){ setStatus(status2El,"ok","Copied - you can paste the words anywhere."); }
           if(navigator.clipboard&&navigator.clipboard.writeText){
             navigator.clipboard.writeText(text).then(done).catch(function(){ fallbackCopy(text); done(); });
@@ -2961,7 +3183,7 @@ HONEST LIMITS
           try{ document.execCommand("copy"); }catch(e){}
         }
         $("clear-btn").addEventListener("click", function(){
-          transcriptEl.value=""; state.entries=[]; updateStats(); clearStatus(status2El);
+          transcriptEl.value=""; state.entries=[]; renderEnglishView(); updateStats(); clearStatus(status2El);
         });
 
         /* ---------- the pack to take away (page + start file + computer helper) ---------- */
@@ -2977,6 +3199,7 @@ HONEST LIMITS
           var st2=q("#status2"); if(st2){ st2.innerHTML=""; st2.className="status"; }
           var st3=q("#status3"); if(st3){ st3.innerHTML=""; st3.className="status"; }
           var ta=q("#transcript"); if(ta){ ta.textContent=""; }
+          var te=q("#transcript-en"); if(te){ te.textContent=""; }
           var vb=q("#video-box"); if(vb){ vb.classList.remove("show"); }
           var pe=q("#preview-empty"); if(pe){ pe.style.display=""; }
           var tw=q("#thumb-wrap");
