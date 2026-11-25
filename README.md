@@ -19,6 +19,7 @@
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/License-MIT-EC4899?style=for-the-badge" alt="License: MIT" />
   <img src="https://img.shields.io/badge/No%20account%20needed-100%25%20free-10B981?style=for-the-badge" alt="No account needed, 100% free" />
+  <a href="#use-it-inside-any-ai-assistant--mcp-server--skill"><img src="https://img.shields.io/badge/MCP%20server-Claude%20%7C%20Cursor%20%7C%20VS%20Code-7C3AED?style=for-the-badge" alt="MCP server: Claude, Cursor, VS Code" /></a>
 </p>
 
 <p align="center">
@@ -38,18 +39,19 @@ It was built for one simple frustration: other tools are slow, and they get song
 - **Second-by-second timestamps.** No milliseconds, no clutter. Just `[00:00:01] the words`.
 - **Optional API key — for speed.** Paste a Groq or OpenAI key (or one OpenRouter key for 100+ providers) and transcription gets much faster and sharper.
 - **Made for everyone.** No technical words, no terminal needed for the easy way. Paste a link, tap one button, save both files.
+- **Use it from any AI assistant.** An MCP server is included — plug it into Claude Desktop, Cursor, VS Code or Claude Code and ask for a transcript in plain words. ([How →](#use-it-inside-any-ai-assistant--mcp-server--skill))
 
 ---
 
-## Two ways to use it
+## Three ways to use it
 
-| | **Way 1 — Online (recommended)** | **Way 2 — Offline (your computer)** |
-|---|---|---|
-| **You need** | Nothing installed. Just the website. | Python 3.10+ and FFmpeg, once |
-| **YouTube link** | Paste it — captions are fetched online (needs the free helper below, one-time setup) | Paste it — captions, or Whisper on your computer |
-| **No captions?** | Upload the song's sound/video file — your key's provider listens to it online | Downloads the audio and transcribes it on your computer |
-| **API key** | Paste it in the bar at the top — it does everything online for you | Optional — same key, through the local server |
-| **Best for** | Anyone, anywhere, in a browser | You, on your own computer, no key needed |
+| | **Way 1 — Online (recommended)** | **Way 2 — Offline (your computer)** | **Way 3 — Inside any AI assistant (MCP)** |
+|---|---|---|---|
+| **You need** | Nothing installed. Just the website. | Python 3.10+ and FFmpeg, once | Python 3.10+, one line in your assistant's config |
+| **YouTube link** | Paste it — captions are fetched online (needs the free helper below, one-time setup) | Paste it — captions, or Whisper on your computer | Just ask: *"transcribe this video"* — no key needed |
+| **No captions?** | Upload the song's sound/video file — your key's provider listens to it online | Downloads the audio and transcribes it on your computer | The assistant sends the sound file to Whisper with your key |
+| **API key** | Paste it in the bar at the top — it does everything online for you | Optional — same key, through the local server | Only for sound files — never stored, never logged |
+| **Best for** | Anyone, anywhere, in a browser | You, on your own computer, no key needed | Any project, bot, or assistant — Claude, Cursor, VS Code |
 
 ### Publish it as a website (GitHub Pages, free)
 
@@ -76,6 +78,83 @@ A plain web page cannot pull the sound out of a YouTube video, and Groq / OpenAI
 > **Step 1** — paste a YouTube link.
 > **Step 2** — tap **Get the transcript**.
 > That's it.
+
+---
+
+## Use it inside any AI assistant — MCP server + skill
+
+<p align="center">
+  <strong>One file. No install beyond Python. Any assistant, any project — just ask for the words.</strong><br />
+  <em>"Transcribe this video"</em> — and the assistant gets the same clean, timed transcript the website gives.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Claude%20Desktop-ready-7C3AED?style=for-the-badge" alt="Claude Desktop ready" />
+  <img src="https://img.shields.io/badge/Cursor-ready-1F2937?style=for-the-badge" alt="Cursor ready" />
+  <img src="https://img.shields.io/badge/VS%20Code-ready-0078D4?style=for-the-badge" alt="VS Code ready" />
+  <img src="https://img.shields.io/badge/Claude%20Code-ready-D97757?style=for-the-badge" alt="Claude Code ready" />
+  <img src="https://img.shields.io/badge/Python-3.10%2B%20only%2C%20no%20packages-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+ only, no packages" />
+</p>
+
+The server is a single file — [`mcp-server/server.py`](mcp-server/server.py) — pure Python standard library, nothing to install. It speaks MCP (JSON-RPC over stdio) and gives any MCP client two tools:
+
+| Tool | What it does |
+|---|---|
+| `transcribe_youtube(url, lang="auto")` | Captions first, same chain as the website: public Invidious mirrors raced in parallel → Piped → YouTube's legacy captions. **Free, no key.** |
+| `transcribe_audio(audio_path_or_url, api_key, provider="groq")` | Sends a sound/video file to Groq or OpenAI Whisper — for videos with **no captions**. Needs your key, for that one call only. |
+
+Both tools return the same two timed versions, line for line:
+
+```text
+[00:26] तू अगर मेरी ये हवाएं तेरी
+[00:26] too agara meree ye havaaen teree
+```
+
+Original language **and** English letters, spelled the way they sound — never a translation. Sound descriptions (`[music]`, `[Sangeet]`, `[म्यूसिक]`, `[BLANK_AUDIO]`, `(pause)`, `♪ tune ♪` …) are stripped, and words are never invented: if a video has no captions and no key is given, the tool says so plainly.
+
+### Set it up — one block, 30 seconds
+
+**Claude Desktop** — edit `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/`, Windows: `%APPDATA%\Claude\`):
+
+```json
+{
+  "mcpServers": {
+    "youtube-transcribe-downloader": {
+      "command": "python3",
+      "args": ["/absolute/path/to/youtube-transcribe-downloader/mcp-server/server.py"]
+    }
+  }
+}
+```
+
+**Cursor** — Settings → MCP → Add new global MCP server (or edit `~/.cursor/mcp.json`), same block as above.
+
+**VS Code** — in `.vscode/mcp.json`, same block but under `"servers"` instead of `"mcpServers"`.
+
+**Claude Code / Muse** — one command:
+
+```bash
+claude mcp add youtube-transcribe-downloader -- python3 /absolute/path/to/youtube-transcribe-downloader/mcp-server/server.py
+```
+
+> On Windows, use `python` instead of `python3` if that is what your install is called, and use forward slashes in the path (`C:/path/to/mcp-server/server.py`). Restart your assistant after adding it — the two tools then appear in its tools list.
+
+### Try it without any setup
+
+```bash
+cd mcp-server
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+  '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"transcribe_youtube","arguments":{"url":"https://youtu.be/GVizJ_jpUnw"}}}' \
+  | python3 server.py
+```
+
+### The skill — for agents and projects
+
+[`mcp-server/SKILL.md`](mcp-server/SKILL.md) is the agent skill: when to use each tool, what comes back, and the rules the tools already follow (captions first, words only, never invent words, keys stay private). Drop it into any agent's skills folder and it knows how to transcribe. Full details: [`mcp-server/README.md`](mcp-server/README.md).
+
+> Honest limits: a video with **no captions** cannot be done from the link alone — the server cannot pull YouTube audio, same as the web page. Audio files over 25 MB are refused. Sung words can still be misheard.
 
 ---
 
@@ -206,6 +285,10 @@ youtube-transcribe-downloader/
 │   ├── worker.js
 │   ├── wrangler.toml
 │   └── README.md
+├── mcp-server/              # MCP server + agent skill — use it from any AI assistant
+│   ├── server.py            # One file, pure Python stdlib, no installs
+│   ├── SKILL.md             # The agent skill: when + how to use the tools
+│   └── README.md            # Setup for Claude Desktop, Cursor, VS Code, Claude Code
 ├── docs/
 │   └── images/              # Banner, logo and preview used in this README
 ├── transcripts/             # Your saved files go here (created automatically)
