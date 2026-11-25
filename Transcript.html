@@ -471,8 +471,8 @@
         .listen-panel .btn{width:100%}
         /* All export buttons stay on ONE row, sized by their labels -
            never wrapped off the panel, never spilling over a neighbour */
-        .export-row{flex-wrap:nowrap;gap:6px}
-        .export-row .btn{flex:0 1 auto;min-width:0;min-height:42px;padding:8px 6px;font-size:12px;white-space:nowrap}
+        .export-row{flex-wrap:nowrap;gap:5px}
+        .export-row .btn{flex:0 1 auto;min-width:0;min-height:42px;padding:8px 5px;font-size:11.5px;white-space:nowrap}
         textarea{min-height:44px}
         .tx-col textarea{min-height:0}
         .tx-tabs{margin-bottom:8px}
@@ -749,12 +749,13 @@
               </div>
               <div class="export-row">
                 <button class="btn btn-red" id="dl-both" type="button">Save both files</button>
+                <button class="btn btn-dark" id="dl-srt" type="button">Save as .srt</button>
                 <button class="btn btn-dark" id="polish-btn" type="button" style="display:none" title="Check the words with your connected key">Check the words</button>
                 <button class="btn btn-ghost" id="copy-btn" type="button">Copy</button>
                 <button class="btn btn-ghost" id="clear-btn" type="button">Clear</button>
               </div>
               <div class="status" id="status2" role="status" aria-live="polite"></div>
-              <p class="hint save-hint" style="margin-top:8px">Saving gives you <b>two files</b>, second by second: one in the video&rsquo;s own writing, and the same words in English letters, spelled the way they sound.</p>
+              <p class="hint save-hint" style="margin-top:8px">Saving gives you <b>two files</b>, second by second: one in the video&rsquo;s own writing, and the same words in English letters, spelled the way they sound. <b>Save as .srt</b> gives you the same two files as subtitles (.srt) that video players can show.</p>
             </div>
 
           </div>
@@ -3415,6 +3416,31 @@ HONEST LIMITS
           download(safeName()+" - original words.txt", buildTimedFile(false));
           setTimeout(function(){ download(safeName()+" - english letters.txt", buildTimedFile(true)); }, 450);
           setStatus(status2El,"ok","Saved both files - one in the video&rsquo;s own writing, and one in English letters.");
+        });
+        /* The same two files as subtitles (.srt): built from the very
+           same second buckets as the .txt files, so the words and the
+           times can never disagree. Each line starts at its own second
+           and ends where the next line starts; the last line runs for
+           two seconds. */
+        function srtTime(sec){
+          var h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s=sec%60;
+          function p(n){ return (n<10? "0":"")+n; }
+          return p(h)+":"+p(m)+":"+p(s)+",000";
+        }
+        function buildSrtFile(useEnglishLetters){
+          var buckets=secondBuckets();
+          return buckets.map(function(b, i){
+            var words=b.words.join(" ");
+            if(useEnglishLetters) words=romanize(words).replace(/\s+/g," ").trim();
+            var end=(i+1<buckets.length)? buckets[i+1].sec : b.sec+2;
+            return (i+1)+"\n"+srtTime(b.sec)+" --> "+srtTime(end)+"\n"+words;
+          }).join("\n\n")+"\n";
+        }
+        $("dl-srt").addEventListener("click", function(){
+          if(!needText()) return;
+          download(safeName()+".srt", buildSrtFile(false));
+          setTimeout(function(){ download(safeName()+" - English letters.srt", buildSrtFile(true)); }, 450);
+          setStatus(status2El,"ok","Saved both files as .srt subtitles - one in the video&rsquo;s own writing, and one in English letters.");
         });
         $("copy-btn").addEventListener("click", function(){
           if(!needText()) return;
