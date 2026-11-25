@@ -37,7 +37,7 @@ It was built for one simple frustration: other tools are slow, and they get song
 - **Captions first.** If the video already has captions, it uses them — in seconds, and exact when the captions are manual.
 - **Two files, every time.** One file in the original language and script. A second file with the *same* words written in English letters, with the correct pronunciation spelling, word by word.
 - **Second-by-second timestamps.** No milliseconds, no clutter. Just `[00:00:01] the words`.
-- **Optional API key — for speed.** Paste a Groq or OpenAI key (or one OpenRouter key for 100+ providers) and transcription gets much faster and sharper.
+- **Optional API key — for speed.** Paste a Groq, OpenAI or Gemini key (or one OpenRouter key for 100+ providers) and transcription gets much faster and sharper.
 - **Made for everyone.** No technical words, no terminal needed for the easy way. Paste a link, tap one button, save both files.
 - **Use it from any AI assistant.** An MCP server is included — plug it into Claude Desktop, Cursor, VS Code or Claude Code and ask for a transcript in plain words. ([How →](#use-it-inside-any-ai-assistant--mcp-server--skill))
 
@@ -63,7 +63,7 @@ Live site: **https://abhishek6966.github.io/Youtube-Transcribe-Downloader/**
 
 ### The free helper — one-time setup, so YouTube links work online
 
-A plain web page cannot pull the sound out of a YouTube video, and Groq / OpenAI block direct calls from browsers. The tiny free worker in `worker/` does those two server-side jobs. Deploy it once (free Cloudflare account, `wrangler login`, `wrangler deploy`), put its address in the `WORKER_URL` setting at the top of `index.html`, and push. Full steps are in [`worker/README.md`](worker/README.md).
+A plain web page cannot pull the sound out of a YouTube video, and Groq / OpenAI / Gemini block direct calls from browsers. The tiny free worker in `worker/` does those two server-side jobs. Deploy it once (free Cloudflare account, `wrangler login`, `wrangler deploy`), put its address in the `WORKER_URL` setting at the top of `index.html`, and push. With the worker set, a connected Gemini key can also transcribe any link directly. Full steps are in [`worker/README.md`](worker/README.md).
 
 > Honest limit: the worker code could not be tested live from the machine that wrote it, so try one captioned video through it first. And a video with **no captions** still needs its sound — the visitor uploads the sound/video file on the page, or uses the offline pack. No web page can pull audio out of a YouTube video on its own.
 
@@ -71,13 +71,31 @@ A plain web page cannot pull the sound out of a YouTube video, and Groq / OpenAI
 
 ## See it in action
 
+▶️ **Watch the full demo (22 seconds, 4K):** [youtube-transcribe-demo-4k.mp4](youtube-transcribe-demo-4k.mp4) — landing, choose your way, paste the link, tap Get the transcript, and the finished transcript in both languages, with the karaoke line at the end.
+
 <p align="center">
-  <img src="docs/images/ui-preview.webp" alt="App preview — paste a link, tap Get the transcript, save both files" width="85%" />
+  <img src="docs/images/demo-step1-landing.gif" alt="Step 1 — the landing page" width="85%" />
 </p>
 
-> **Step 1** — paste a YouTube link.
-> **Step 2** — tap **Get the transcript**.
-> That's it.
+> **Step 1** — the landing. One screen, no scrolling.
+
+<p align="center">
+  <img src="docs/images/demo-step2-choose.gif" alt="Step 2 — choose your way: online with a key, or on your computer" width="85%" />
+</p>
+
+> **Step 2** — choose your way: online with a key, or on your own computer, no key.
+
+<p align="center">
+  <img src="docs/images/demo-step3-get.gif" alt="Step 3 — paste the link and tap Get the transcript" width="85%" />
+</p>
+
+> **Step 3** — paste a YouTube link, tap **Get the transcript**, and watch the words appear.
+
+<p align="center">
+  <img src="docs/images/demo-step3-transcript.gif" alt="The finished transcript — original and English letters, side by side with timestamps" width="85%" />
+</p>
+
+> The finished transcript, in one panel with three tabs — **Side by side**, **Original**, **English letters**. Both versions next to each other with the same timestamps, each side scrolling inside its own box. No junk lines, no sound descriptions — words only.
 
 ---
 
@@ -169,7 +187,8 @@ printf '%s\n' \
 | ⏱️ **Second-by-second timestamps** | `[00:00:00]`, `[00:00:01]`, `[00:00:02]`… seconds only. (`.srt` files keep milliseconds, because the SRT format requires them.) |
 | 🔑 **API key — one bar, automatic** | Paste any provider key in the small bar at the top and tap **Fetch & Connect**. It detects the provider from the key, fetches all its models, and connects the best one for lyrics automatically. |
 | 🧠 **AI word check** | When a key is connected, the model checks the words and fixes clear mistakes before you save. |
-| 🎧 **Listen with a key** | With a Groq or OpenAI key, the provider can listen to a sound file you pick and write the words down with times itself. |
+| 🎧 **Listen with a key** | With a Groq, OpenAI or Gemini key, the provider can listen to a sound file you pick and write the words down with times itself. |
+| 🗂️ **Side-by-side transcript tabs** | One panel, three tabs — **Side by side**, **Original**, **English letters**. Both versions next to each other with the same timestamps, each side scrolling inside its own box, no page scroll. |
 | 🎨 **Premium, simple design** | Colourful, clean, fully responsive. No technical details on screen — made for normal users, not engineers. |
 | 🔒 **Your key stays yours** | The key lives only in your open browser tab. It is never saved to a file, never sent to us, and only ever sent to the provider it belongs to. |
 
