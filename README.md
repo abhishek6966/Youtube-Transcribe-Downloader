@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="docs/images/logo.webp" alt="YouTube Transcribe Downloader logo" width="120" />
-</p>
-
 <h1 align="center">YouTube Transcribe Downloader</h1>
 
 <p align="center">
@@ -13,20 +9,9 @@
   <a href="https://abhishek6966.github.io/Youtube-Transcribe-Downloader/">https://abhishek6966.github.io/Youtube-Transcribe-Downloader/</a>
 </p>
 
-<p align="center">
-  <a href="#quick-start"><img src="https://img.shields.io/badge/Quick%20Start-2%20steps-8B5CF6?style=for-the-badge" alt="Quick Start: 2 steps" /></a>
-  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-1F2937?style=for-the-badge" alt="Platform: Windows, macOS, Linux" />
-  <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" />
-  <img src="https://img.shields.io/badge/License-MIT-EC4899?style=for-the-badge" alt="License: MIT" />
-  <img src="https://img.shields.io/badge/No%20account%20needed-100%25%20free-10B981?style=for-the-badge" alt="No account needed, 100% free" />
-  <a href="#use-it-inside-any-ai-assistant--mcp-server--skill"><img src="https://img.shields.io/badge/MCP%20server-Claude%20%7C%20Cursor%20%7C%20VS%20Code-7C3AED?style=for-the-badge" alt="MCP server: Claude, Cursor, VS Code" /></a>
-</p>
-
-<p align="center">
-  <img src="docs/images/hero-banner.webp" alt="YouTube Transcribe Downloader — paste a link, get the transcript second by second" width="100%" />
-</p>
-
 ---
+
+## See it in action
 
 ## What is this?
 
@@ -73,28 +58,12 @@ A plain web page cannot pull the sound out of a YouTube video, and Groq / OpenAI
 
 ▶️ **Watch the full demo (22 seconds, 4K):** [youtube-transcribe-demo-4k.mp4](youtube-transcribe-demo-4k.mp4) — landing, choose your way, paste the link, tap Get the transcript, and the finished transcript in both languages, with the karaoke line at the end.
 
-<p align="center">
-  <img src="docs/images/demo-step1-landing.gif" alt="Step 1 — the landing page" width="85%" />
-</p>
-
 > **Step 1** — the landing. One screen, no scrolling.
-
-<p align="center">
-  <img src="docs/images/demo-step2-choose.gif" alt="Step 2 — choose your way: online with a key, or on your computer" width="85%" />
-</p>
-
+>
 > **Step 2** — choose your way: online with a key, or on your own computer, no key.
-
-<p align="center">
-  <img src="docs/images/demo-step3-get.gif" alt="Step 3 — paste the link and tap Get the transcript" width="85%" />
-</p>
-
+>
 > **Step 3** — paste a YouTube link, tap **Get the transcript**, and watch the words appear.
-
-<p align="center">
-  <img src="docs/images/demo-step3-transcript.gif" alt="The finished transcript — original and English letters, side by side with timestamps" width="85%" />
-</p>
-
+>
 > The finished transcript, in one panel with three tabs — **Side by side**, **Original**, **English letters**. Both versions next to each other with the same timestamps, each side scrolling inside its own box. No junk lines, no sound descriptions — words only.
 
 ---
@@ -104,14 +73,6 @@ A plain web page cannot pull the sound out of a YouTube video, and Groq / OpenAI
 <p align="center">
   <strong>One file. No install beyond Python. Any assistant, any project — just ask for the words.</strong><br />
   <em>"Transcribe this video"</em> — and the assistant gets the same clean, timed transcript the website gives.
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Claude%20Desktop-ready-7C3AED?style=for-the-badge" alt="Claude Desktop ready" />
-  <img src="https://img.shields.io/badge/Cursor-ready-1F2937?style=for-the-badge" alt="Cursor ready" />
-  <img src="https://img.shields.io/badge/VS%20Code-ready-0078D4?style=for-the-badge" alt="VS Code ready" />
-  <img src="https://img.shields.io/badge/Claude%20Code-ready-D97757?style=for-the-badge" alt="Claude Code ready" />
-  <img src="https://img.shields.io/badge/Python-3.10%2B%20only%2C%20no%20packages-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+ only, no packages" />
 </p>
 
 The server is a single file — [`mcp-server/server.py`](mcp-server/server.py) — pure Python standard library, nothing to install. It speaks MCP (JSON-RPC over stdio) and gives any MCP client two tools:

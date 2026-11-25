@@ -363,6 +363,16 @@
       .listen-panel .btn{flex:none;min-height:44px;padding:9px 16px;font-size:14px}
       .export-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;flex:none}
       .export-row .btn{min-height:44px;padding:9px 16px;font-size:14px}
+      /* Offline-pack fallback: shown ONLY when captions were blocked on
+         every route (the yellow "YouTube wouldn't hand..." state). Kept
+         deliberately tiny so Step 3 still fits on one screen. */
+      .offline-box{display:none;margin-top:10px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--surface-2);flex:none}
+      .offline-box.show{display:block}
+      .offline-box h3{font-size:14px;font-weight:800;line-height:1.25}
+      .offline-box .btn{margin-top:8px;min-height:40px;padding:7px 14px;font-size:14px}
+      .offline-box ol{margin:7px 0 0;padding-left:17px}
+      .offline-box li{font-size:12.5px;color:var(--ink-2);line-height:1.4;margin-top:2px}
+      .offline-box .ob-note{font-size:12.5px;color:var(--ink-2);margin-top:7px;line-height:1.4}
 
       /* ---------- Processing animation ---------- */
       .processing{display:none;margin-top:10px;padding:9px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;flex:none}
@@ -694,6 +704,16 @@
               <button class="btn btn-red btn-big" id="fetch-btn" type="button">Get the transcript</button>
               <p class="route-note" id="route-note"></p>
               <div class="status" id="status" role="status" aria-live="polite"></div>
+              <div class="offline-box" id="offline-box">
+                <h3>Or do it on your computer &mdash; works for any video</h3>
+                <a class="btn btn-ghost" href="offline-pack.zip" download>Download the offline pack</a>
+                <ol>
+                  <li>Unzip the pack, double-click run_transcript_v2.bat. First time it installs what it needs &mdash; needs internet, a few minutes.</li>
+                  <li>Paste the video link, type the language if you know it, press Enter.</li>
+                  <li>The words are saved as two text files in the transcripts folder.</li>
+                </ol>
+                <p class="ob-note">Works for any video, even with no captions. Needs a Windows computer.</p>
+              </div>
               <div class="processing" id="processing" role="status" aria-live="polite" aria-hidden="true">
                 <div class="proc-top">
                   <div class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
@@ -1532,6 +1552,7 @@ HONEST LIMITS
            Only a live "working" (info) message stays until it is replaced. */
         function setStatus(el, kind, html){
           if(el._statusTimer){ clearTimeout(el._statusTimer); el._statusTimer=null; }
+          if(el===statusEl) hideOfflineBox();
           el.className="status show "+kind;
           el.innerHTML=html+'<button type="button" class="status-x" aria-label="Dismiss this message">&times;</button>';
           var x=el.querySelector(".status-x");
@@ -1542,8 +1563,17 @@ HONEST LIMITS
         }
         function clearStatus(el){
           if(el._statusTimer){ clearTimeout(el._statusTimer); el._statusTimer=null; }
+          if(el===statusEl) hideOfflineBox();
           el.className="status"; el.innerHTML="";
         }
+        /* The offline-pack box belongs to ONE state only: captions blocked
+           on every route (the yellow message set in the fetch handler).
+           It is shown right after that message is set, and hidden again
+           the moment the status is replaced or cleared - including the
+           message's own auto-dismiss and its close button, which both
+           come through setStatus / clearStatus above. */
+        function showOfflineBox(){ var b=$("offline-box"); if(b) b.classList.add("show"); }
+        function hideOfflineBox(){ var b=$("offline-box"); if(b) b.classList.remove("show"); }
 
         /* ---------- URL parsing ---------- */
         function parseVideoId(raw){
@@ -1574,13 +1604,13 @@ HONEST LIMITS
            three Invidious addresses named here had shut down entirely)
            stalled or sank the whole lookup even when the others were
            fine. */
-        var INVIDIOUS_HOSTS=["https://inv.nadeko.net","https://invidious.privacyredirect.com","https://invidious.jing.rocks","https://invidious.reallyaweso.me","https://invidious.0011.lt","https://invidious.fdn.fr"];
+        var INVIDIOUS_HOSTS=["https://yt.chocolatemoo53.com","https://inv.nadeko.net","https://invidious.privacyredirect.com","https://invidious.jing.rocks","https://invidious.reallyaweso.me","https://invidious.0011.lt","https://invidious.fdn.fr","https://yewtu.be","https://invidious.protokolla.fi","https://vid.puffyan.us","https://invidious.snopyta.org","https://invidious.datura.network","https://invidious.materialio.us","https://invidious.tux.pizza","https://invidious.flokinet.to","https://invidious.melmac.space","https://invidious.nerdvpn.de","https://invidious.tiekoetter.com"];
         /* A second, independent family of public servers (Piped): its
            streams answer lists the same caption tracks with subtitle
            files a page is allowed to read. Two families, raced
            together, cover for each other - whichever public server is
            healthy today is the one that answers. */
-        var PIPED_HOSTS=["https://api.piped.private.coffee","https://pipedapi.kavin.rocks","https://pipedapi.adminforge.de","https://pipedapi.leptons.xyz","https://pipedapi.dmatik.dev","https://pipedapi.syncpundit.io"];
+        var PIPED_HOSTS=["https://api.piped.private.coffee","https://pipedapi.ducks.party","https://pipedapi.kavin.rocks","https://pipedapi.adminforge.de","https://pipedapi.leptons.xyz","https://pipedapi.dmatik.dev","https://pipedapi.syncpundit.io","https://pipedapi.nosebs.ru","https://pipedapi-libre.kavin.rocks","https://piped-api.privacy.com.de","https://api.piped.yt","https://pipedapi.drgns.space","https://pipedapi.owo.si","https://piped-api.codespace.cz","https://pipedapi.reallyaweso.me","https://pipedapi.darkness.services","https://pipedapi.orangenet.cc"];
         /* Race several promise factories: the first success wins, and
            the race only fails when every single one has failed. */
         function firstSuccess(factories){
@@ -2994,7 +3024,8 @@ HONEST LIMITS
             if(err&&err.message==="notracks"){
               setStatus(statusEl,"warn","This video has no captions at all - that was checked properly, through every route. "+(ai.connected&&ai.audioModel? "Use the listening panel on the right: pick the video&rsquo;s sound file and "+ai.provider.name+" will write down the words it hears." : "The computer pack (top-right info button) can fetch the sound and write the words on your PC."));
             }else{
-              setStatus(statusEl,"warn","YouTube wouldn&rsquo;t hand this video&rsquo;s captions to a web page through any route - that is YouTube&rsquo;s block, not your internet. "+(ai.connected&&ai.audioModel? "Use the listening panel on the right: pick the video&rsquo;s sound file and "+ai.provider.name+" will write down the words it hears." : "With a Groq, OpenAI or Gemini key connected, the listening panel on the right can write the words from a sound file - or the computer pack (top-right info button) can fetch the sound itself."));
+              setStatus(statusEl,"warn","YouTube wouldn&rsquo;t hand this video&rsquo;s captions to a web page through any route - that is YouTube&rsquo;s block, not your internet. "+(ai.connected&&ai.audioModel? "Use the listening panel on the right: pick the video&rsquo;s sound file and "+ai.provider.name+" will write down the words it hears. Or set the free online helper once (Step 2, &rsquo;Online helper address&rsquo;) — then Get the transcript works for any video through Gemini, no captions needed." : "With a Groq, OpenAI or Gemini key connected, the listening panel on the right can write the words from a sound file - or the computer pack (top-right info button) can fetch the sound itself. Or set the free online helper once (Step 2, &rsquo;Online helper address&rsquo;) — then Get the transcript can fetch the captions itself."));
+              showOfflineBox();
             }
             transcriptEl.focus();
           }).finally(function(){ btn.disabled=false; stopProcessing(); });
@@ -3486,6 +3517,7 @@ HONEST LIMITS
           var bg=q("#bg-stage"); if(bg){ bg.innerHTML=""; }
           var fb2=q("#file-banner"); if(fb2){ fb2.classList.remove("show"); }
           var st=q("#status"); if(st){ st.innerHTML=""; st.className="status"; }
+          var ob=q("#offline-box"); if(ob){ ob.classList.remove("show"); }
           var pr=q("#processing"); if(pr){ pr.classList.remove("show"); pr.setAttribute("aria-hidden","true"); }
           var pel=q("#proc-elapsed"); if(pel){ pel.textContent="00:00"; }
           var st2=q("#status2"); if(st2){ st2.innerHTML=""; st2.className="status"; }
