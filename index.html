@@ -1,0 +1,3004 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>YouTube Transcribe Downloader</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      :root{
+        --bg:#f6f6f4; --surface:#ffffff; --surface-2:#efefec;
+        --ink:#131314; --ink-2:#4c4c4f; --ink-3:#76767b; --line:#dededb;
+        --red:#e62117; --red-dark:#c1120a; --red-soft:#fdecea;
+        --green:#137a3f; --green-soft:#e6f4ec;
+        --amber:#8a5a00; --amber-soft:#fdf3dd;
+        --shadow:0 1px 2px rgba(16,16,18,.05),0 10px 30px -18px rgba(16,16,18,.25);
+        color-scheme:light dark;
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --bg:#0e0e10; --surface:#17181a; --surface-2:#1f2023;
+          --ink:#f2f2f0; --ink-2:#c6c6c2; --ink-3:#9a9a96; --line:#2c2d30;
+          --red:#ff4d42; --red-dark:#ff6f66; --red-soft:#331512;
+          --green:#4cc97e; --green-soft:#12291c;
+          --amber:#f0b84a; --amber-soft:#2e2410;
+          --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px -18px rgba(0,0,0,.7);
+        }
+      }
+      *{box-sizing:border-box}
+      html,body{height:100%}
+      html{-webkit-text-size-adjust:100%}
+      body{
+        margin:0;background:var(--bg);color:var(--ink);overflow:hidden;
+        font-family:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
+        font-size:16px;line-height:1.5;
+      }
+      h1,h2,h3{font-family:"Archivo","Manrope",system-ui,sans-serif;line-height:1.12;margin:0;letter-spacing:-.01em}
+      p{margin:0}
+      a{color:var(--red)}
+      button,input,select,textarea{font:inherit;color:inherit}
+      button,select,input:not([type="checkbox"],[type="radio"]){min-height:2.75rem}
+      :focus-visible{outline:3px solid var(--red);outline-offset:2px;border-radius:6px}
+      .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+      /* ---------- Drifting video-card background (every step) ----------
+         Rows of curved YouTube-style video cards drift forever, alternate
+         rows in opposite directions. Kept faded and blurred, behind
+         everything, and never clickable, so text and buttons stay clear. */
+      .bg-stage{position:fixed;inset:-24px 0;z-index:0;overflow:hidden;pointer-events:none;
+        display:flex;flex-direction:column;justify-content:space-evenly;gap:22px;
+        opacity:.42;filter:blur(3px) saturate(1.15)}
+      .bg-veil{position:fixed;inset:0;z-index:0;pointer-events:none;
+        background:color-mix(in srgb, var(--bg) 55%, transparent)}
+      .bg-row{display:flex;width:max-content;flex:none;will-change:transform;animation:driftR 72s linear infinite}
+      .bg-row.rev{animation-name:driftL}
+      .bg-row.slow{animation-duration:98s}
+      .bg-group{display:flex;gap:20px;padding-right:20px;flex:none}
+      @keyframes driftR{from{transform:translateX(-50%)}to{transform:translateX(0)}}
+      @keyframes driftL{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+      .vcard{flex:none;width:228px;background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+      .vthumb{position:relative;aspect-ratio:16/9}
+      .vthumb .play{position:absolute;inset:0;margin:auto;width:52px;height:38px;border-radius:11px;background:var(--red);display:flex;align-items:center;justify-content:center}
+      .vthumb .play svg{width:19px;height:19px;fill:#fff}
+      .vthumb .dur{position:absolute;right:7px;bottom:7px;background:rgba(0,0,0,.82);color:#fff;font-family:"IBM Plex Mono",monospace;font-size:10.5px;padding:2px 6px;border-radius:6px}
+      .vmeta{display:flex;gap:9px;padding:10px 12px 12px}
+      .vava{width:26px;height:26px;min-height:26px;border-radius:50%;flex:none}
+      .vlines{flex:1;padding-top:3px;min-width:0}
+      .vline{height:8px;border-radius:99px;background:var(--surface-2);border:1px solid var(--line)}
+
+      /* ---------- App frame: one viewport, no page scroll ---------- */
+      .app{height:100dvh;max-width:1180px;margin:0 auto;padding:0 16px;display:flex;flex-direction:column;position:relative;z-index:1}
+      .topbar{flex:none;display:flex;align-items:center;justify-content:space-between;padding:12px 2px 6px}
+      .steps-ind{display:flex;align-items:center;gap:6px}
+      .steps-ind .dot{width:26px;height:6px;border-radius:999px;background:var(--line)}
+      .steps-ind .dot.on{background:var(--red)}
+      .steps-ind .lbl{font-size:12.5px;font-weight:700;color:var(--ink-3);margin-left:6px}
+      .info-btn{
+        width:42px;height:42px;min-height:42px;border-radius:50%;cursor:pointer;flex:none;
+        border:1.5px solid var(--line);background:var(--surface);color:var(--red);
+        display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);
+      }
+      .info-btn svg{width:21px;height:21px}
+      .info-btn:hover{border-color:var(--red)}
+      .screens{flex:1;min-height:0;position:relative}
+      .screen{position:absolute;inset:0;display:none;flex-direction:column;min-height:0;padding:8px 2px 14px}
+      .screen.active{display:flex}
+
+      /* ---------- Shared controls ---------- */
+      .btn{
+        appearance:none;border:0;cursor:pointer;border-radius:10px;
+        font-weight:800;font-size:15px;padding:11px 20px;
+        display:inline-flex;align-items:center;justify-content:center;gap:8px;
+        min-height:48px;text-decoration:none;text-align:center;
+      }
+      .btn-red{background:var(--red);color:#fff}
+      .btn-red:hover{background:var(--red-dark)}
+      .btn-ghost{background:var(--surface-2);color:var(--ink);border:1px solid var(--line)}
+      .btn-ghost:hover{border-color:var(--ink-3)}
+      .btn-dark{background:var(--ink);color:var(--bg)}
+      .btn[disabled]{opacity:.45;cursor:not-allowed}
+      .btn svg{width:18px;height:18px;flex:none}
+      label.field{display:block;font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);margin:0 0 6px}
+      input[type="text"],input[type="url"],input[type="password"],select,textarea{
+        width:100%;background:var(--surface);border:1.5px solid var(--line);
+        border-radius:10px;padding:10px 13px;font-size:15.5px;
+      }
+      input:focus,textarea:focus{border-color:var(--red);outline:none}
+      select.premium{
+        appearance:none;-webkit-appearance:none;cursor:pointer;
+        padding:10px 42px 10px 13px;font-size:15px;font-weight:600;
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
+        background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23e62117' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat:no-repeat;background-position:right 13px center;background-size:17px;
+        transition:border-color .15s ease, box-shadow .15s ease;
+      }
+      select.premium:hover{border-color:var(--ink-3)}
+      select.premium:focus{border-color:var(--red);outline:none;box-shadow:0 0 0 4px var(--red-soft)}
+      /* ---------- Premium custom language dropdown ----------
+         Replaces the plain browser list for languages: a polished
+         button, a floating panel with a search box on top and a
+         scrollable list under it. The real <select> stays in the
+         page, visually hidden, and this widget drives its value -
+         so every part of the app that reads the picked language
+         keeps working exactly as before. */
+      .lang-select-hidden{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden}
+      .lang-dd{position:relative}
+      .lang-dd-btn{
+        width:100%;display:flex;align-items:center;gap:10px;cursor:pointer;text-align:left;
+        background:var(--surface);border:1.5px solid var(--line);border-radius:10px;
+        padding:10px 13px;min-height:2.75rem;font-size:15px;font-weight:600;color:var(--ink);
+        transition:border-color .15s ease, box-shadow .15s ease;
+      }
+      .lang-dd-btn:hover{border-color:var(--ink-3)}
+      .lang-dd-btn .lang-dd-label{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .lang-dd-btn .lang-dd-code{flex:none;font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:500;color:var(--ink-3);background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+      .lang-dd-btn svg{width:17px;height:17px;flex:none;color:var(--red);transition:transform .18s ease}
+      .lang-dd.open .lang-dd-btn{border-color:var(--red);box-shadow:0 0 0 4px var(--red-soft)}
+      .lang-dd.open .lang-dd-btn svg{transform:rotate(180deg)}
+      .lang-dd-pop{
+        position:absolute;top:calc(100% + 8px);left:0;z-index:60;width:100%;min-width:min(280px,84vw);
+        background:var(--surface);border:1.5px solid var(--line);border-radius:14px;box-shadow:var(--shadow);
+        padding:10px;display:none;flex-direction:column;max-height:min(330px,48vh);
+      }
+      .lang-dd.open .lang-dd-pop{display:flex}
+      .lang-dd-search{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1.5px solid var(--line);border-radius:10px;padding:0 11px;flex:none}
+      .lang-dd-search:focus-within{border-color:var(--red);background:var(--surface)}
+      .lang-dd-search svg{width:16px;height:16px;flex:none;color:var(--ink-3)}
+      .lang-dd-search input{flex:1;min-width:0;border:0;background:transparent;padding:9px 0;font-size:14.5px;min-height:40px}
+      .lang-dd-search input:focus{outline:none}
+      .lang-dd-count{font-size:11.5px;font-weight:700;color:var(--ink-3);margin:8px 2px 4px;flex:none}
+      .lang-dd-list{list-style:none;margin:0;padding:0;overflow-y:auto;flex:1;min-height:0;scrollbar-width:thin}
+      .lang-dd-list::-webkit-scrollbar{width:8px}
+      .lang-dd-list::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px}
+      .lang-dd-item{
+        display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;cursor:pointer;
+        font-size:14.5px;font-weight:600;color:var(--ink);line-height:1.3;
+      }
+      .lang-dd-item .nm{flex:1;min-width:0}
+      .lang-dd-item .cd{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-3);flex:none}
+      .lang-dd-item .tick{width:16px;height:16px;flex:none;color:var(--red);visibility:hidden}
+      .lang-dd-item:hover,.lang-dd-item.active{background:var(--surface-2)}
+      .lang-dd-item.selected{color:var(--red)}
+      .lang-dd-item.selected .tick{visibility:visible}
+      .lang-dd-item.auto-item{border-bottom:1px solid var(--line);border-radius:8px 8px 0 0;margin-bottom:4px;padding-bottom:10px}
+      .lang-dd-none{font-size:13.5px;color:var(--ink-3);padding:12px 10px;text-align:center}
+      .status{margin-top:10px;border-radius:10px;padding:9px 38px 9px 12px;font-size:13.5px;display:none;position:relative;flex:none}
+      .status.show{display:block}
+      .status-x{position:absolute;top:4px;right:4px;width:26px;height:26px;min-height:26px;border:0;border-radius:50%;background:transparent;color:inherit;font-size:17px;line-height:1;cursor:pointer;opacity:.7;padding:0}
+      .status-x:hover{opacity:1;background:rgba(127,127,127,.18)}
+      .status.info{background:var(--surface-2);color:var(--ink-2)}
+      .status.ok{background:var(--green-soft);color:var(--green);font-weight:600}
+      .status.warn{background:var(--amber-soft);color:var(--amber);font-weight:600}
+      .status.err{background:var(--red-soft);color:var(--red);font-weight:600}
+      .spinner{display:inline-block;width:14px;height:14px;vertical-align:-2px;margin-right:8px;border:2.5px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
+      @keyframes spin{to{transform:rotate(360deg)}}
+      .hint{font-size:13px;color:var(--ink-3)}
+      .linklike{background:none;border:0;padding:4px 2px;min-height:36px;cursor:pointer;color:var(--red);font-weight:700;text-decoration:underline;text-underline-offset:3px}
+      code{font-family:"IBM Plex Mono",monospace;font-size:.92em;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:1px 6px;white-space:nowrap}
+
+      /* ---------- Step 1 : landing ---------- */
+      .landing{margin:auto;width:100%;max-width:660px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:0;min-height:0}
+      .landing h1{font-size:clamp(30px,6vw,52px);font-weight:800}
+      .landing h1 .accent{color:var(--red)}
+      .landing .lede{margin-top:14px;font-size:clamp(15px,2.4vw,18px);color:var(--ink-2);max-width:540px}
+      .demo-card{
+        margin-top:22px;width:min(100%,430px);text-align:left;
+        background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:16px 18px;
+      }
+      .demo-row{display:flex;align-items:center;gap:12px;padding:6px 0}
+      .demo-row .ts{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--red);font-weight:500;flex:none}
+      .demo-row .bar{height:9px;border-radius:99px;background:var(--surface-2);border:1px solid var(--line)}
+      .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:20px}
+      .chips span{font-size:13px;font-weight:700;color:var(--ink-2);background:var(--surface);border:1px solid var(--line);padding:7px 12px;border-radius:999px}
+      .btn-start{margin-top:24px;min-width:min(280px,100%);min-height:58px;font-size:17px;border-radius:12px}
+      .landing .fine{margin-top:12px;font-size:13px;color:var(--ink-3)}
+      /* Shown only when the page was opened as a local file (file://) */
+      .file-banner{display:none;margin-top:20px;width:min(100%,560px);text-align:left;
+        background:var(--amber-soft);border:1.5px solid var(--amber);border-radius:16px;
+        box-shadow:var(--shadow);padding:16px 18px}
+      .file-banner.show{display:block}
+      .file-banner h2{font-size:17px;font-weight:800}
+      .file-banner p{font-size:14px;color:var(--ink-2);margin-top:6px}
+      .file-banner p b{color:var(--ink)}
+      .file-banner .btn{margin-top:12px}
+      .file-banner .file-banner-note{font-size:13px}
+
+      /* ---------- Step 2 : choose a way ---------- */
+      .choose{margin:auto;width:100%;max-width:780px;display:flex;flex-direction:column;min-height:0;width:100%}
+      .choose h2{font-size:clamp(22px,3.6vw,30px);font-weight:800;text-align:center}
+      .choose .sub{text-align:center;color:var(--ink-2);font-size:15px;margin-top:8px}
+      .way-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px;flex:none}
+      .way-card{
+        text-align:left;cursor:pointer;background:var(--surface);border:1.5px solid var(--line);
+        border-radius:16px;padding:16px 18px;box-shadow:var(--shadow);min-height:0;
+      }
+      .way-card:hover{border-color:var(--ink-3)}
+      .way-card.selected{border-color:var(--red);background:var(--red-soft)}
+      .way-card .way-tag{display:inline-block;font-size:11.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:4px 10px;border-radius:999px;margin-bottom:9px;background:var(--green-soft);color:var(--green)}
+      .way-card .way-tag.local{background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}
+      .way-card h3{font-size:18px;font-weight:800}
+      .way-card p{font-size:13.5px;color:var(--ink-2);margin-top:5px}
+      .way-panel{
+        margin-top:14px;background:var(--surface);border:1px solid var(--line);border-radius:16px;
+        box-shadow:var(--shadow);padding:16px 18px;flex:none;
+      }
+      .api-top{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+      .api-dot{width:9px;height:9px;border-radius:50%;background:var(--ink-3);flex:none}
+      .api-dot.on{background:var(--green)}
+      .api-title{font-size:15px;font-weight:800}
+      .api-badge{font-size:12px;font-weight:700;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);padding:4px 10px;border-radius:999px}
+      .api-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+      .api-row input{flex:1 1 220px}
+      .api-note{font-size:12.5px;color:var(--ink-3);margin-top:9px}
+      .nav-row{display:flex;gap:10px;margin-top:16px;flex:none}
+      .nav-row .grow{flex:1}
+
+      /* ---------- Step 3 : studio ----------
+         NO SCROLLING ANYWHERE: neither panel ever scrolls. Every control
+         is sized to fit the screen at once - the video preview is a slim
+         horizontal strip, the two dropdowns sit side by side at full
+         readable width, and only the transcript box itself grows/shrinks
+         (flex) to fill whatever height is left. */
+      .studio-head{flex:none;display:flex;align-items:center;gap:10px;padding-bottom:8px}
+      .studio-head .mode{font-size:13.5px;font-weight:700;color:var(--ink-2)}
+      .btn-back{min-height:38px;padding:6px 14px;font-size:14px}
+      .studio{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:12px;width:100%}
+      .panel{
+        background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);
+        padding:14px;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;
+      }
+      .panel h2{font-size:16.5px;font-weight:800;margin-bottom:8px;flex:none}
+      .url-row{display:flex;gap:10px;flex:none}
+      .url-row input{flex:1;min-width:0}
+      .sel-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-top:10px;flex:none}
+      .btn-big{width:100%;min-height:50px;font-size:16.5px;border-radius:12px;margin-top:12px;flex:none}
+      .route-note{font-size:12px;color:var(--ink-3);margin-top:7px;flex:none;line-height:1.4}
+      .api-connected{display:none;margin-top:10px;border-top:1px solid var(--line);padding-top:9px;flex:none}
+      .api-connected.show{display:flex;align-items:flex-start;gap:10px}
+      .api-connected .api-note{margin-top:0;flex:1;min-width:0}
+      .api-connected .btn{flex:none}
+      .way2-strip{display:none;margin-top:10px;border-top:1px solid var(--line);padding-top:9px;flex:none}
+      .way2-strip p{font-size:13px;color:var(--ink-2)}
+      .way2-strip .btn{margin-top:8px}
+      .preview-empty{border:1.5px dashed var(--line);border-radius:10px;padding:7px 12px;color:var(--ink-3);font-size:12.5px;text-align:center;margin-top:10px;flex:none}
+      /* Preview card: a proper 16:9 thumbnail with the video's title,
+         channel, length and views beside it - big enough to recognise
+         the video and check it is the right one before transcribing.
+         The title wraps to at most 3 lines, so nothing is cut off. */
+      .video-box{margin-top:10px;display:none;flex:none;gap:14px;align-items:flex-start;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:10px}
+      .video-box.show{display:flex}
+      .thumb-wrap{position:relative;border-radius:8px;overflow:hidden;background:#000;aspect-ratio:16/9;width:232px;flex:none}
+      .thumb-wrap img{width:100%;height:100%;object-fit:cover;display:block}
+      .thumb-wrap iframe{width:100%;height:100%;border:0;display:block}
+      .thumb-wrap.playing{width:100%;max-width:360px;margin-inline:auto}
+      .play-btn{position:absolute;inset:0;margin:auto;width:52px;height:38px;min-height:38px;border:0;cursor:pointer;background:var(--red);border-radius:10px;display:flex;align-items:center;justify-content:center}
+      .play-btn svg{width:20px;height:20px;fill:#fff}
+      .video-meta{flex:1;min-width:0;text-align:left;padding-top:2px}
+      .video-meta .vtitle{font-weight:800;font-size:14.5px;line-height:1.32;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+      .video-meta .vauthor{color:var(--ink-2);font-size:12.5px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .video-meta .vauthor a{color:var(--ink-2);font-weight:700;text-decoration:none}
+      .video-meta .vauthor a:hover{text-decoration:underline}
+      .video-meta .vfacts{color:var(--ink-3);font-size:12px;font-weight:600;margin-top:3px;line-height:1.45}
+      .video-meta .watch{display:inline-block;margin-top:4px;font-size:12.5px;font-weight:700}
+      textarea{
+        font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+        font-size:13.5px;line-height:1.6;flex:1 1 auto;min-height:52px;resize:none;width:100%;
+      }
+      /* The listening panel: for a video with no captions. The connected
+         provider (Groq / OpenAI) really does listen - the file goes to
+         its Whisper model from this page and the words come back timed. */
+      .listen-panel{margin-top:10px;border:1.5px dashed var(--line);border-radius:12px;padding:10px 12px;background:var(--surface-2);flex:none;display:flex;align-items:center;gap:12px;text-align:left}
+      .listen-panel.drag{border-color:var(--red);background:var(--red-soft)}
+      .listen-panel .lp-text{flex:1;min-width:0}
+      .listen-panel h3{font-size:14.5px;font-weight:800}
+      .listen-panel p{font-size:12.5px;color:var(--ink-2);margin-top:2px;line-height:1.45}
+      .listen-panel .btn{flex:none;min-height:44px;padding:9px 16px;font-size:14px}
+      .export-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;flex:none}
+      .export-row .btn{min-height:44px;padding:9px 16px;font-size:14px}
+
+      /* ---------- Processing animation ---------- */
+      .processing{display:none;margin-top:10px;padding:9px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;flex:none}
+      .processing.show{display:block}
+      .proc-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+      .eq{display:flex;align-items:flex-end;gap:4px;height:34px;flex:none;padding:6px 9px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+      .eq span{display:block;width:6px;height:100%;border-radius:4px;transform-origin:bottom;animation:eqBounce 1s ease-in-out infinite}
+      .eq span:nth-child(1){background:#e62117;animation-delay:0s}
+      .eq span:nth-child(2){background:#f08c00;animation-delay:.12s}
+      .eq span:nth-child(3){background:#e6b800;animation-delay:.24s}
+      .eq span:nth-child(4){background:#137a3f;animation-delay:.36s}
+      .eq span:nth-child(5){background:#0e7c86;animation-delay:.48s}
+      .eq span:nth-child(6){background:#2563eb;animation-delay:.6s}
+      .eq span:nth-child(7){background:#7c3aed;animation-delay:.72s}
+      .eq span:nth-child(8){background:#d6336c;animation-delay:.84s}
+      .eq span:nth-child(9){background:#e62117;animation-delay:.96s}
+      @keyframes eqBounce{0%,100%{transform:scaleY(.22)}35%{transform:scaleY(1)}70%{transform:scaleY(.48)}}
+      .proc-text{flex:1 1 160px;min-width:140px}
+      .proc-label{font-weight:800;font-size:15px}
+      .proc-stage{color:var(--ink-2);font-size:13.5px;margin-top:1px}
+      .proc-timer{flex:none;text-align:right}
+      .proc-timer-label{display:block;font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+      .proc-timer-value{display:block;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:22px;font-weight:500;line-height:1.15;font-variant-numeric:tabular-nums}
+      .proc-track{margin-top:10px;height:6px;border-radius:999px;overflow:hidden;background:var(--surface);border:1px solid var(--line);position:relative}
+      .proc-bar{position:absolute;top:0;bottom:0;left:0;width:38%;border-radius:999px;background:var(--red);animation:procSlide 1.35s ease-in-out infinite}
+      @keyframes procSlide{0%{left:-38%}100%{left:100%}}
+      @media (prefers-reduced-motion: reduce){
+        .spinner{animation:none}
+        .eq span{animation:none;transform:scaleY(.7)}
+        .proc-bar{animation:none;left:0;width:100%;opacity:.45}
+        .bg-row{animation:none}
+      }
+
+      /* ---------- Info modal ---------- */
+      .modal{position:fixed;inset:0;display:none;z-index:50}
+      .modal.open{display:flex;align-items:center;justify-content:center}
+      .modal-back{position:absolute;inset:0;background:rgba(10,10,12,.55)}
+      .modal-card{
+        position:relative;width:calc(100% - 28px);max-width:660px;max-height:calc(100dvh - 40px);overflow:auto;
+        background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:22px;
+      }
+      .modal-card h2{font-size:21px;font-weight:800;padding-right:44px}
+      .modal-card h3{font-size:15.5px;font-weight:800;margin:20px 0 6px}
+      .modal-card p,.modal-card li{font-size:14.5px;color:var(--ink-2)}
+      .modal-card li b,.modal-card p b{color:var(--ink)}
+      .modal-card ul,.modal-card ol{margin:8px 0 0;padding-left:20px}
+      .modal-card li{margin-top:6px}
+      .modal-close{position:absolute;top:14px;right:14px;width:38px;height:38px;min-height:38px;border-radius:50%;border:1px solid var(--line);background:var(--surface-2);cursor:pointer;font-size:17px;line-height:1;color:var(--ink)}
+      .modal-card .btn{margin-top:12px}
+      .modal-card .status{margin-bottom:4px}
+      /* Info panel: short headed sections, one point per line */
+      .info-lede{margin-top:6px;font-size:14.5px;color:var(--ink-2)}
+      .info-sec{margin-top:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:13px 15px 11px}
+      .modal-card .info-sec h3{margin:0 0 4px;font-size:15px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:9px}
+      .info-sec h3 .n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;min-height:22px;border-radius:50%;background:var(--red);color:#fff;font-size:12.5px;font-weight:800;flex:none}
+      .modal-card .info-sec ul{margin:0;padding:0;list-style:none}
+      .modal-card .info-sec li{margin:0;padding:6px 0 6px 20px;position:relative;font-size:14px;line-height:1.45;border-top:1px dashed var(--line)}
+      .modal-card .info-sec li:first-child{border-top:0}
+      .modal-card .info-sec li::before{content:"";position:absolute;left:3px;top:13px;width:6px;height:6px;border-radius:50%;background:var(--red)}
+      .modal-card .info-sec .btn{margin-top:10px}
+      .modal-card .info-sec .status{margin-top:10px}
+
+      /* ---------- Small screens / short screens ----------
+         Still no scrolling: panels shrink, they never scroll. On narrow
+         screens the dropdowns stack full-width so every word of every
+         option stays readable; on short screens the extras give way. */
+      @media (max-width:900px){
+        .studio{gap:10px}
+        .panel{padding:12px}
+        .sel-row{grid-template-columns:1fr}
+        .thumb-wrap{width:196px}
+      }
+      @media (max-width:680px){
+        .studio{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
+        .sel-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+        .sel-row select.premium{font-size:13.5px;padding-left:10px}
+        .thumb-wrap{width:150px}
+        .video-meta .vtitle{-webkit-line-clamp:2}
+        .save-hint{display:none}
+        .listen-panel{flex-direction:column;align-items:stretch;text-align:center}
+        .listen-panel .btn{width:100%}
+        /* All export buttons stay on ONE row, sized by their labels -
+           never wrapped off the panel, never spilling over a neighbour */
+        .export-row{flex-wrap:nowrap;gap:6px}
+        .export-row .btn{flex:0 1 auto;min-width:0;min-height:42px;padding:8px 6px;font-size:12px;white-space:nowrap}
+        textarea{min-height:44px}
+      }
+      @media (max-width:560px){
+        .app{padding:0 10px}
+        .way-grid{grid-template-columns:1fr}
+        .way-card{padding:12px 14px}
+        .way-card p{display:none}
+        .chips{display:none}
+        .demo-card{margin-top:16px;padding:12px 14px}
+        .btn-start{margin-top:18px}
+      }
+      @media (max-height:720px){
+        .route-note{display:none}
+        .way2-strip p{display:none}
+        .way-card{padding:11px 14px}
+        .way-card p{display:none}
+        .way-panel{padding:12px 14px;margin-top:10px}
+        .way-grid{margin-top:12px}
+        .api-note{display:none}
+        .demo-card{display:none}
+        .landing .lede{margin-top:10px}
+        .btn-start{margin-top:18px}
+        .preview-empty{display:none}
+        .save-hint{display:none}
+        .thumb-wrap{width:168px}
+        .panel{padding:11px 12px}
+        .btn-big{min-height:46px;margin-top:10px}
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="bg-stage" id="bg-stage" aria-hidden="true"></div>
+    <div class="bg-veil" aria-hidden="true"></div>
+    <div class="app">
+      <div class="topbar">
+        <div class="steps-ind" aria-hidden="true">
+          <span class="dot on" id="dot-1"></span><span class="dot" id="dot-2"></span><span class="dot" id="dot-3"></span>
+          <span class="lbl" id="step-label">Step 1 of 3</span>
+        </div>
+        <button class="info-btn" id="info-btn" type="button" aria-label="Information and help">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.2"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.6" r="0.6" fill="currentColor"/></svg>
+        </button>
+      </div>
+
+      <div class="screens">
+
+        <!-- ============ STEP 1 : LANDING ============ -->
+        <section class="screen active" id="screen-1" aria-label="Welcome">
+          <div class="landing">
+            <h1>Any YouTube video,<br /><span class="accent">written out for you.</span></h1>
+            <p class="lede">Paste a link and get the video&rsquo;s words as a transcript &mdash; second by second, in the original language, plus the same words in English letters so you can read them aloud.</p>
+            <div class="file-banner" id="file-banner" role="alert">
+              <h2>Opened as a file &mdash; keys can&rsquo;t connect from here</h2>
+              <p>You opened this page by double-clicking the HTML file. API providers won&rsquo;t answer a page opened that way, so no key &mdash; Groq, Gemini, OpenAI or any other &mdash; can connect here. Your key is fine. Open the page the proper way instead:</p>
+              <a class="btn btn-red" href="http://127.0.0.1:8765/" target="_blank" rel="noopener">Open the page the proper way</a>
+              <p class="file-banner-note">If that address doesn&rsquo;t open, go to the pack folder first and double-click <b>start_html.bat</b>, then tap the button again.</p>
+            </div>
+            <div class="demo-card" aria-hidden="true">
+              <div class="demo-row"><span class="ts">[00:01]</span><span class="bar" style="width:62%"></span></div>
+              <div class="demo-row"><span class="ts">[00:02]</span><span class="bar" style="width:84%"></span></div>
+              <div class="demo-row"><span class="ts">[00:03]</span><span class="bar" style="width:47%"></span></div>
+            </div>
+            <div class="chips">
+              <span>Original language</span><span>English letters</span><span>Second by second</span><span>Any video</span>
+            </div>
+            <button class="btn btn-red btn-start" id="start-btn" type="button">Start</button>
+            <p class="fine">Three short steps. Nothing to install for the online way.</p>
+          </div>
+        </section>
+
+        <!-- ============ STEP 2 : CHOOSE A WAY ============ -->
+        <section class="screen" id="screen-2" aria-label="Choose how to transcribe">
+          <div class="choose">
+            <h2>How do you want to do it?</h2>
+            <p class="sub">Pick one way. You can come back and change it any time.</p>
+            <div class="way-grid" role="group" aria-label="Choose a way">
+              <button class="way-card selected" id="way1-card" type="button" aria-pressed="true">
+                <span class="way-tag">Way 1 &middot; Recommended</span>
+                <h3>Online, with your API key</h3>
+                <p>Everything happens right here in the page &mdash; on any device, nothing to install, no terminal.</p>
+              </button>
+              <button class="way-card" id="way2-card" type="button" aria-pressed="false">
+                <span class="way-tag local">Way 2 &middot; No key</span>
+                <h3>On your own computer</h3>
+                <p>No API key. Get the words from captions here, and use the free computer pack for videos with no captions.</p>
+              </button>
+            </div>
+
+            <div class="way-panel" id="way1-panel">
+              <div class="api-top">
+                <span class="api-dot" id="api-dot" aria-hidden="true"></span>
+                <span class="api-title">Paste your API key</span>
+                <span class="api-badge" id="api-badge">Not connected</span>
+              </div>
+              <div class="api-row" id="api-row">
+                <label class="sr-only" for="api-key">Paste your API key</label>
+                <input type="password" id="api-key" placeholder="Paste your API key here &mdash; it connects by itself" autocomplete="off" spellcheck="false" />
+                <button class="btn btn-dark" id="api-connect" type="button" style="display:none">Try again</button>
+              </div>
+              <p class="api-note">Just paste &mdash; no button to tap. The moment a full key lands here, the page finds its provider, fetches its models and picks the best one by itself, then takes you straight to Step 3. Groq, OpenAI, Google Gemini, DeepSeek, NVIDIA and more &mdash; one OpenRouter key opens models from 100+ providers. Your key stays in this tab only and is sent only to its own provider.</p>
+              <div class="status" id="api-status" role="status" aria-live="polite"></div>
+              <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+                <label class="field" for="worker-url">Online helper address &middot; optional</label>
+                <input type="url" id="worker-url" placeholder="https://your-worker.example.workers.dev" autocomplete="off" spellcheck="false" />
+                <p class="api-note">Paste your free worker&rsquo;s address once &mdash; it stays set while this page is open. <b style="color:var(--ink)">This is what lets YouTube links work fully online</b>: the helper fetches the video&rsquo;s sound itself, so even a video with no captions can be transcribed from the link alone. Setup steps are in the info panel (top right). No page alone can promise that &mdash; YouTube blocks pages from pulling captions and sound directly.</p>
+                <div class="status" id="worker-status" role="status" aria-live="polite"></div>
+              </div>
+            </div>
+
+            <div class="way-panel" id="way2-panel" style="display:none">
+              <p style="font-size:14.5px;color:var(--ink-2)">No key needed. On the next screen you paste a link and get the transcript from the video&rsquo;s captions. For a video with <b style="color:var(--ink)">no captions at all</b>, download the free computer pack &mdash; it listens to the sound on your own PC.</p>
+              <button class="btn btn-ghost pack-dl" type="button" style="margin-top:12px">Download the computer pack</button>
+            </div>
+
+            <div class="nav-row">
+              <button class="btn btn-ghost" id="back-1" type="button">Back</button>
+              <button class="btn btn-red grow" id="to-step3" type="button" disabled>Connect a key to continue</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ STEP 3 : STUDIO ============ -->
+        <section class="screen" id="screen-3" aria-label="Transcribe">
+          <div class="studio-head">
+            <button class="btn btn-ghost btn-back" id="back-2" type="button">Back</button>
+            <span class="mode" id="mode-label">Way 1 &middot; Online with your key</span>
+          </div>
+          <div class="studio">
+
+            <div class="panel" aria-label="Video and settings">
+              <h2>Your video</h2>
+              <label class="field" for="url-input">YouTube link</label>
+              <div class="url-row">
+                <input type="url" id="url-input" placeholder="Paste the link here" autocomplete="off" spellcheck="false" />
+              </div>
+              <div class="preview-empty" id="preview-empty">Paste a link and your video shows here.</div>
+              <div class="video-box" id="video-box">
+                <div class="thumb-wrap" id="thumb-wrap">
+                  <img id="thumb-img" alt="Video thumbnail" />
+                  <button class="play-btn" id="play-btn" type="button" aria-label="Play video">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                  </button>
+                </div>
+                <div class="video-meta">
+                  <p class="vtitle" id="v-title"></p>
+                  <p class="vauthor" id="v-author"></p>
+                  <p class="vfacts" id="v-facts"></p>
+                  <a class="watch" id="watch-link" href="https://www.youtube.com" target="_blank" rel="noopener" style="display:none">Watch on YouTube</a>
+                </div>
+              </div>
+              <div class="sel-row">
+                <div style="position:relative">
+                  <label class="field" for="lang-dd-btn">Language of the video</label>
+                  <div class="lang-dd" id="lang-dd">
+                    <button type="button" class="lang-dd-btn" id="lang-dd-btn" aria-haspopup="listbox" aria-expanded="false">
+                      <span class="lang-dd-label" id="lang-dd-label">Auto &mdash; work it out</span>
+                      <span class="lang-dd-code" id="lang-dd-code" style="display:none"></span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                    </button>
+                    <div class="lang-dd-pop" id="lang-dd-pop">
+                      <div class="lang-dd-search">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
+                        <input type="text" id="lang-search" placeholder="Search languages&hellip;" autocomplete="off" spellcheck="false" aria-label="Search languages" />
+                      </div>
+                      <p class="lang-dd-count" id="lang-dd-count"></p>
+                      <ul class="lang-dd-list" id="lang-dd-list" role="listbox" aria-label="Languages"></ul>
+                      <p class="lang-dd-none" id="lang-dd-none" style="display:none">No language matches &mdash; try another spelling.</p>
+                    </div>
+                  </div>
+                  <!-- The real select stays in the page, hidden: the custom
+                       dropdown above drives its value, and the rest of the
+                       app reads the picked language from it as before. -->
+                  <select class="premium lang-select-hidden" id="lang-select" tabindex="-1" aria-hidden="true">
+                    <option value="" selected>Auto &mdash; work it out</option>
+                    <!-- Every other language is added by the script below:
+                         the full world language list, not just a few. -->
+                  </select>
+                </div>
+                <div>
+                  <label class="field" for="model-select">Listening model</label>
+                  <select class="premium" id="model-select" aria-label="Listening model">
+                    <option value="">Connect a key in Step 2</option>
+                  </select>
+                </div>
+              </div>
+              <button class="btn btn-red btn-big" id="fetch-btn" type="button">Get the transcript</button>
+              <p class="route-note" id="route-note"></p>
+              <div class="status" id="status" role="status" aria-live="polite"></div>
+              <div class="processing" id="processing" role="status" aria-live="polite" aria-hidden="true">
+                <div class="proc-top">
+                  <div class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                  <div class="proc-text">
+                    <p class="proc-label">Getting the transcript</p>
+                    <p class="proc-stage" id="proc-stage">Looking for the words on this video&hellip;</p>
+                  </div>
+                  <div class="proc-timer">
+                    <span class="proc-timer-label">Time so far</span>
+                    <span class="proc-timer-value" id="proc-elapsed">00:00</span>
+                  </div>
+                </div>
+                <div class="proc-track" aria-hidden="true"><span class="proc-bar"></span></div>
+              </div>
+              <div class="api-connected" id="api-connected">
+                <p class="api-note" id="api-found"></p>
+                <button class="btn btn-ghost" id="api-disconnect" type="button" style="min-height:38px;padding:6px 12px;font-size:13.5px">Disconnect</button>
+              </div>
+              <div class="way2-strip" id="way2-strip">
+                <p><b>Way 2:</b> no key, nothing sent to any provider. If this video has no captions, the computer pack can listen to its sound on your PC.</p>
+                <button class="btn btn-ghost pack-dl" type="button" style="min-height:40px;padding:7px 14px;font-size:14px">Download the computer pack</button>
+              </div>
+            </div>
+
+            <div class="panel" aria-label="Transcript">
+              <h2>Your transcript</h2>
+              <label class="field" for="transcript">The words</label>
+              <textarea id="transcript" placeholder="The words will appear here. You can also paste words here yourself." spellcheck="false"></textarea>
+              <p class="hint" style="margin-top:8px">Already have the words in a file?
+                <button type="button" class="linklike" id="file-btn">Add them from a file</button>
+                <input type="file" id="file-input" class="sr-only" accept=".srt,.vtt,.txt,text/plain" />
+              </p>
+              <div class="listen-panel" id="audio-hint" style="display:none">
+                <div class="lp-text">
+                  <h3>No captions? Let <span id="audio-provider">your provider</span> listen</h3>
+                  <p>This really works: pick the video&rsquo;s sound file (MP3) or a video file from this device &mdash; or drop it here &mdash; and <span id="audio-provider-2">the provider</span>&rsquo;s listening model writes down the words it hears, with their times. Up to 25&nbsp;MB.</p>
+                </div>
+                <button type="button" class="btn btn-dark" id="audio-btn">Choose a sound or video file</button>
+                <input type="file" id="audio-input" class="sr-only" accept="audio/*,video/*,.mp3,.m4a,.wav,.ogg,.webm,.mp4,.mov" />
+              </div>
+              <div class="export-row">
+                <button class="btn btn-red" id="dl-both" type="button">Save both files</button>
+                <button class="btn btn-dark" id="polish-btn" type="button" style="display:none" title="Check the words with your connected key">Check the words</button>
+                <button class="btn btn-ghost" id="copy-btn" type="button">Copy</button>
+                <button class="btn btn-ghost" id="clear-btn" type="button">Clear</button>
+              </div>
+              <div class="status" id="status2" role="status" aria-live="polite"></div>
+              <p class="hint save-hint" style="margin-top:8px">Saving gives you <b>two files</b>, second by second: one in the video&rsquo;s own writing, and the same words in English letters, spelled the way they sound.</p>
+            </div>
+
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ============ INFO MODAL ============ -->
+    <div class="modal" id="info-modal" role="dialog" aria-modal="true" aria-labelledby="h-info">
+      <div class="modal-back" id="info-back"></div>
+      <div class="modal-card">
+        <button class="modal-close" id="info-close" type="button" aria-label="Close information">&times;</button>
+        <h2 id="h-info">How this works</h2>
+        <p class="info-lede">Three steps. Two files. Plain and simple.</p>
+
+        <div class="info-sec">
+          <h3><span class="n">1</span> What you get</h3>
+          <ul>
+            <li>File 1 &mdash; the words in the video&rsquo;s own language and writing.</li>
+            <li>File 2 &mdash; the same words in English letters, spelled as they sound.</li>
+            <li>Both files go second by second: <code>[00:01]</code>, <code>[00:02]</code>, and so on.</li>
+          </ul>
+        </div>
+
+        <div class="info-sec">
+          <h3><span class="n">2</span> Quick steps</h3>
+          <ul>
+            <li>Step 1 &mdash; tap <b>Start</b>.</li>
+            <li>Step 2 &mdash; pick Way 1 or Way 2.</li>
+            <li>Step 3 &mdash; paste the link and pick the language.</li>
+            <li>Tap <b>Get the transcript</b>.</li>
+            <li>Tap <b>Save both files</b>. Done.</li>
+          </ul>
+        </div>
+
+        <div class="info-sec">
+          <h3><span class="n">3</span> Way 1 &mdash; Online, with your key</h3>
+          <ul>
+            <li>Paste your key on Step 2. It connects by itself &mdash; no button to tap.</li>
+            <li>When the key checks out, you are taken straight to Step 3.</li>
+            <li>We find the provider from the key itself.</li>
+            <li>We fetch its models and pick the best one for you.</li>
+            <li>You can change the model on Step 3.</li>
+            <li>Works with Groq, OpenAI, Gemini, DeepSeek, NVIDIA and more.</li>
+            <li>One <b>OpenRouter</b> key opens models from 100+ providers.</li>
+            <li>Have the free worker set up? Paste its address in the <b>Online helper address</b> field on Step 2 &mdash; YouTube links then work fully online, even with no captions.</li>
+            <li>A key with no known shape is refused, never guessed.</li>
+            <li>With a Groq or OpenAI key, the provider can also listen to a sound file you pick.</li>
+            <li>Your key stays in this tab only. It is never saved.</li>
+            <li>Your key is sent only to its own provider.</li>
+          </ul>
+        </div>
+
+        <div class="info-sec">
+          <h3><span class="n">4</span> Way 2 &mdash; On your computer, no key</h3>
+          <ul>
+            <li>No key needed. Nothing to paste.</li>
+            <li>Download the free pack below and open the folder.</li>
+            <li>Double-click <b>start_html.bat</b> &mdash; the page opens through its local web address, so keys can connect.</li>
+            <li>Video with no captions? Double-click <b>run_transcript_v2.bat</b>.</li>
+            <li>It listens on your own PC with faster-whisper.</li>
+            <li>The pack also has <b>README.md</b> and <b>index.html</b>, ready for GitHub Pages.</li>
+          </ul>
+          <button class="btn btn-red" id="dl-zip" type="button">Download the computer pack</button>
+          <div class="status" id="status3" role="status" aria-live="polite"></div>
+        </div>
+
+        <div class="info-sec">
+          <h3><span class="n">5</span> How we keep the words accurate</h3>
+          <ul>
+            <li>Captions made by the video&rsquo;s maker are used first. They are exact.</li>
+            <li>Auto language reads the spoken-language track itself, then cross-checks the script of the words.</li>
+            <li>Know the language? Pick it. A picked language is always surer than Auto.</li>
+            <li>The AI check runs twice: first it fixes, then it verifies.</li>
+            <li>Names are checked against the video title.</li>
+            <li>The check may fix a word. It may never add a word that was not heard.</li>
+            <li>An unclear sung or fast word stays as heard &mdash; it is never guessed or filled in.</li>
+            <li>Long transcripts are checked in small parts, so no part is skipped or cut short.</li>
+          </ul>
+        </div>
+
+        <div class="info-sec">
+          <h3><span class="n">6</span> Good to know</h3>
+          <ul>
+            <li>YouTube&rsquo;s auto captions can still get names and fast lines wrong.</li>
+            <li>Singing over music is the hardest part. A misheard sung word can stay wrong.</li>
+            <li>A web page cannot pull the sound out of a YouTube video by itself.</li>
+            <li>With the free worker set up, the link alone is enough &mdash; the worker fetches the sound and your provider writes the words.</li>
+            <li>Online, your provider listens to a file you pick.</li>
+            <li>Offline, the pack fetches the sound for you.</li>
+            <li>A page opened by double-clicking the file can&rsquo;t connect any key. Open it through its web address instead &mdash; <b>start_html.bat</b> in the pack does that for you.</li>
+            <li>The words belong to the video&rsquo;s maker. Keep them for your own use.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <script type="text/plain" id="src-open-bat">@echo off
+rem One click: serves this folder on your own PC and opens the page
+rem through its local web address (http://127.0.0.1:8765), so API keys
+rem can connect. Opening Transcript.html by double-clicking it opens
+rem it as a file instead, and providers will not answer a page opened
+rem as a file - that is why this opener goes through the local server.
+cd /d "%~dp0"
+where python >nul 2>nul
+if errorlevel 1 (set PY=py) else (set PY=python)
+start "Transcript server - keep this window open" /min %PY% -m http.server 8765 --bind 127.0.0.1
+timeout /t 2 /nobreak >nul
+start "" "http://127.0.0.1:8765/Transcript.html"
+</script>
+
+    <script type="text/plain" id="src-start-html-bat">@echo off
+rem Start here: serves this folder on your own PC and opens the page
+rem through its local web address (http://127.0.0.1:8765), so API keys
+rem can connect. Opening the HTML file by double-clicking it opens it
+rem as a file instead, and providers will not answer a page opened as
+rem a file - that is why this file goes through the local server.
+cd /d "%~dp0"
+where python >nul 2>nul
+if errorlevel 1 (set PY=py) else (set PY=python)
+start "Transcript server - keep this window open" /min %PY% -m http.server 8765 --bind 127.0.0.1
+timeout /t 2 /nobreak >nul
+start "" "http://127.0.0.1:8765/Transcript.html"
+echo The page is open in your browser at http://127.0.0.1:8765/
+echo Keep the small server window open while you use the page.
+pause
+</script>
+
+    <script type="text/plain" id="src-bat">@echo off
+chcp 65001 >nul
+title YouTube Transcribe Downloader v2
+cd /d "%~dp0"
+
+where python >nul 2>nul
+if errorlevel 1 (
+  echo Python was not found on this PC.
+  echo Install it free from https://www.python.org/downloads/ - tick "Add python.exe to PATH" during setup.
+  pause
+  exit /b 1
+)
+
+if not exist ".venv" (
+  echo First run: setting up. This happens once.
+  python -m venv .venv
+)
+call .venv\Scripts\activate.bat
+
+python -m pip install --upgrade pip >nul
+pip install -q yt-dlp faster-whisper
+if errorlevel 1 (
+  echo Package install failed. Check your internet connection and run again.
+  pause
+  exit /b 1
+)
+
+python yt_transcript_v2.py
+pause
+</script>
+
+    <script type="text/plain" id="src-py">#!/usr/bin/env python3
+"""
+YouTube Transcribe Downloader v2
+1) Tries the video's own captions first (seconds; exact if the uploader made them).
+2) If there are no captions, downloads the audio and transcribes it with
+   faster-whisper large-v3-turbo (much faster than large-v3, near-same accuracy).
+Keeps the original language - never translates.
+"""
+import re, subprocess, sys, time
+from pathlib import Path
+
+OUT = Path("transcripts"); OUT.mkdir(exist_ok=True)
+
+def video_id(url):
+    m = re.search(r"(?:v=|youtu\.be/|shorts/|live/|embed/)([A-Za-z0-9_-]{11})", url)
+    return m.group(1) if m else None
+
+def fmt_sec(seconds):
+    total = int(round(seconds))
+    h, rem = divmod(total, 3600); m, s = divmod(rem, 60)
+    if h:
+        return f"{h:02d}:{m:02d}:{s:02d}"
+    return f"{m:02d}:{s:02d}"
+
+def parse_clock(tok):
+    tok = tok.strip().replace(",", ".")
+    parts = tok.split(":")
+    if len(parts) == 3:
+        return int(parts[0])*3600 + int(parts[1])*60 + float(parts[2])
+    if len(parts) == 2:
+        return int(parts[0])*60 + float(parts[1])
+    return float(tok)
+
+def try_captions(vid, lang):
+    """Download subtitle file with yt-dlp. Returns list of (start, end, text) or None."""
+    base = OUT / vid
+    cmd = [sys.executable, "-m", "yt_dlp", "--skip-download",
+           "--write-subs", "--write-auto-subs",
+           "--sub-langs", f"{lang}.*,en.*", "--sub-format", "vtt",
+           "-o", str(base) + ".%(ext)s",
+           f"https://www.youtube.com/watch?v={vid}"]
+    subprocess.run(cmd, capture_output=True)
+    for f in sorted(OUT.glob(vid + "*.vtt")):
+        entries, last = [], None
+        for line in f.read_text(encoding="utf-8", errors="ignore").splitlines():
+            if "-->" in line:
+                left, right = line.split("-->", 1)
+                start = parse_clock(left); end = parse_clock(right.strip().split()[0])
+                last = start
+                entries.append([start, end, ""])
+            elif line.strip() and last is not None and not line.startswith(("WEBVTT", "Kind:", "Language:")):
+                txt = re.sub(r"<[^>]+>", "", line).strip()
+                if txt and (not entries[-1][2] or txt != entries[-1][2]):
+                    entries[-1][2] = (entries[-1][2] + " " + txt).strip()
+        entries = [e for e in entries if e[2]]
+        if entries:
+            kind = "auto captions" if "auto" in f.name else "captions"
+            return entries, kind
+    return None
+
+def transcribe_audio(vid, lang):
+    audio = OUT / (vid + ".m4a")
+    subprocess.run([sys.executable, "-m", "yt_dlp", "-f", "bestaudio[ext=m4a]/bestaudio",
+                    "-o", str(audio), f"https://www.youtube.com/watch?v={vid}"], check=True)
+    from faster_whisper import WhisperModel
+    print("Loading model large-v3-turbo (first run downloads ~800 MB, once)...")
+    model = WhisperModel("large-v3-turbo", device="cpu", compute_type="int8")
+    # Accuracy first, tuned for names, fast lines and singing:
+    # - the video title goes in as the prompt, so names in it are spelled right
+    # - beam_size=5 and temperature=0 (careful, steady decoding - not the fast guess)
+    # - a gentle voice filter with padding, so sung lines over music are not clipped
+    title = subprocess.run([sys.executable, "-m", "yt_dlp", "--get-title",
+                            f"https://www.youtube.com/watch?v={vid}"],
+                           capture_output=True, text=True).stdout.strip()
+    if not lang:
+        # Auto language, done properly: detect on its own pass, report the
+        # score honestly, then LOCK the winner in for the full pass - a
+        # locked language stops whole lines drifting into the wrong one.
+        _, info0 = model.transcribe(str(audio), beam_size=1, word_timestamps=False)
+        lang = info0.language
+        print(f"Detected language: {lang} (probability {info0.language_probability:.2f})")
+        if info0.language_probability < 0.5:
+            print("Warning: the language is not certain. If the words look wrong,")
+            print("run again and type the language code yourself - that is always surer.")
+    kwargs = dict(beam_size=5, temperature=0.0, word_timestamps=True,
+                  condition_on_previous_text=True,
+                  vad_filter=True,
+                  vad_parameters=dict(min_silence_duration_ms=700, speech_pad_ms=400),
+                  initial_prompt=title or None)
+    if lang:
+        kwargs["language"] = lang
+    segments, info = model.transcribe(str(audio), **kwargs)
+    print(f"Language: {info.language} (probability {info.language_probability:.2f})")
+    events = []
+    for s in segments:
+        words = getattr(s, "words", None)
+        if words:
+            for w in words:
+                if w.word.strip():
+                    events.append((w.start, w.word.strip()))
+        else:
+            parts = s.text.strip().split()
+            span = max(0.5, (s.end or s.start + 2) - s.start)
+            for i, w in enumerate(parts):
+                events.append((s.start + span * i / max(1, len(parts)), w))
+    return events, "Whisper turbo transcription"
+
+# ---------- write the sounds in English letters ----------
+import unicodedata
+INDIC_BASES = [0x0900, 0x0980, 0x0A00, 0x0A80, 0x0B00, 0x0B80, 0x0C00, 0x0C80, 0x0D00]
+INDIC_VOWELS = {0x05:"a",0x06:"aa",0x07:"i",0x08:"ee",0x09:"u",0x0A:"oo",0x0B:"ri",0x0F:"e",0x10:"ai",0x13:"o",0x14:"au"}
+INDIC_MATRAS = {0x3E:"aa",0x3F:"i",0x40:"ee",0x41:"u",0x42:"oo",0x43:"ri",0x47:"e",0x48:"ai",0x4B:"o",0x4C:"au"}
+INDIC_CONS = {0x15:"k",0x16:"kh",0x17:"g",0x18:"gh",0x19:"ng",0x1A:"ch",0x1B:"chh",0x1C:"j",0x1D:"jh",0x1E:"ny",0x1F:"t",0x20:"th",0x21:"d",0x22:"dh",0x23:"n",0x24:"t",0x25:"th",0x26:"d",0x27:"dh",0x28:"n",0x29:"n",0x2A:"p",0x2B:"ph",0x2C:"b",0x2D:"bh",0x2E:"m",0x2F:"y",0x30:"r",0x31:"r",0x32:"l",0x33:"l",0x34:"l",0x35:"v",0x36:"sh",0x37:"sh",0x38:"s",0x39:"h",0x58:"k",0x59:"kh",0x5A:"g",0x5B:"z",0x5C:"d",0x5D:"dh",0x5E:"f",0x5F:"y"}
+INDIC_NUKTA = {0x15:"k",0x16:"kh",0x17:"g",0x1C:"z",0x21:"d",0x22:"dh",0x2B:"f"}
+CYR = {"а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"yo","ж":"zh","з":"z","и":"i","й":"y","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r","с":"s","т":"t","у":"u","ф":"f","х":"kh","ц":"ts","ч":"ch","ш":"sh","щ":"shch","ъ":"","ы":"y","ь":"","э":"e","ю":"yu","я":"ya"}
+GRK = {"α":"a","β":"v","γ":"g","δ":"d","ε":"e","ζ":"z","η":"i","θ":"th","ι":"i","κ":"k","λ":"l","μ":"m","ν":"n","ξ":"x","ο":"o","π":"p","ρ":"r","σ":"s","ς":"s","τ":"t","υ":"y","φ":"ph","χ":"kh","ψ":"ps","ω":"o","ά":"a","έ":"e","ή":"i","ί":"i","ό":"o","ύ":"y","ώ":"o","ϊ":"i","ϋ":"y"}
+ARB = {"ا":"a","ب":"b","ت":"t","ث":"th","ج":"j","ح":"h","خ":"kh","د":"d","ذ":"dh","ر":"r","ز":"z","س":"s","ش":"sh","ص":"s","ض":"d","ط":"t","ظ":"z","ع":"'","غ":"gh","ف":"f","ق":"q","ك":"k","ل":"l","م":"m","ن":"n","ه":"h","و":"w","ي":"y","ة":"a","ى":"a","أ":"a","إ":"i","آ":"aa","ؤ":"w","ئ":"y","ء":"'","َ":"a","ُ":"u","ِ":"i"}
+KANA_SRC = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ"
+KANA_ROM = ["a","i","u","e","o","ka","ki","ku","ke","ko","sa","shi","su","se","so","ta","chi","tsu","te","to","na","ni","nu","ne","no","ha","hi","fu","he","ho","ma","mi","mu","me","mo","ya","yu","yo","ra","ri","ru","re","ro","wa","wo","n","ga","gi","gu","ge","go","za","ji","zu","ze","zo","da","ji","zu","de","do","ba","bi","bu","be","bo","pa","pi","pu","pe","po"]
+KANA = dict(zip(KANA_SRC, KANA_ROM))
+KANA_DIGI = {"ki":"ky","shi":"sh","chi":"ch","ni":"ny","hi":"hy","mi":"my","ri":"ry","gi":"gy","ji":"j","bi":"by","pi":"py"}
+HG_I = ["g","kk","n","d","tt","r","m","b","pp","s","ss","","j","jj","ch","k","t","p","h"]
+HG_M = ["a","ae","ya","yae","eo","e","yeo","ye","o","wa","wae","oe","yo","u","wo","we","wi","yu","eu","ui","i"]
+HG_F = ["","k","k","k","n","n","nh","t","l","l","l","l","l","l","l","l","m","p","p","s","s","ng","j","ch","k","t","p","h"]
+LATX = {"ñ":"ny","ß":"ss","æ":"ae","œ":"oe","ø":"o","đ":"d","ł":"l","þ":"th","ð":"d","ş":"sh","ğ":"g","ı":"i","ç":"ch"}
+
+def _indic_base(code):
+    for b in INDIC_BASES:
+        if b <= code < b + 0x80:
+            return b
+    return 0
+
+def romanize(text):
+    out, i, n = [], 0, len(text)
+    while i < n:
+        ch = text[i]; code = ord(ch); base = _indic_base(code)
+        if base:
+            off = code - base
+            if off in INDIC_CONS:
+                r = INDIC_CONS[off]; i += 1
+                if i < n and ord(text[i]) - base == 0x3C:
+                    r = INDIC_NUKTA.get(off, r); i += 1
+                noff = ord(text[i]) - base if i < n else -1
+                if noff == 0x4D:
+                    i += 1; out.append(r)
+                elif noff in INDIC_MATRAS:
+                    out.append(r + INDIC_MATRAS[noff]); i += 1
+                else:
+                    out.append(r + "a")
+            elif off in INDIC_VOWELS:
+                out.append(INDIC_VOWELS[off]); i += 1
+            elif off in (0x01, 0x02):
+                out.append("n"); i += 1
+            elif off == 0x03:
+                out.append("h"); i += 1
+            elif 0x66 <= off <= 0x6F:
+                out.append(str(off - 0x66)); i += 1
+            else:
+                i += 1
+            continue
+        if 0xAC00 <= code <= 0xD7A3:
+            s = code - 0xAC00
+            out.append(HG_I[s // 588] + HG_M[(s % 588) // 28] + HG_F[s % 28]); i += 1; continue
+        if 0x3040 <= code <= 0x30FF:
+            c = chr(code - 0x60) if 0x30A1 <= code <= 0x30F6 else ch
+            if c == "っ":
+                nxt = KANA.get(chr(ord(text[i+1]) - 0x60) if i + 1 < n and 0x30A1 <= ord(text[i+1]) <= 0x30F6 else (text[i+1] if i + 1 < n else ""), "")
+                out.append(nxt[0] if nxt and nxt[0] in "bcdfghjkprstz" else ""); i += 1; continue
+            rom = KANA.get(c)
+            if rom and i + 1 < n:
+                small = chr(ord(text[i+1]) - 0x60) if 0x30A1 <= ord(text[i+1]) <= 0x30F6 else text[i+1]
+                if small in "ゃゅょ" and rom in KANA_DIGI:
+                    out.append(KANA_DIGI[rom] + {"ゃ":"a","ゅ":"u","ょ":"o"}[small]); i += 2; continue
+            out.append(rom if rom else ch); i += 1; continue
+        low = ch.lower()
+        if low in CYR:
+            r = CYR[low]; out.append(r.capitalize() if ch.isupper() and r else r); i += 1; continue
+        if low in GRK:
+            r = GRK[low]; out.append(r.capitalize() if ch.isupper() and r else r); i += 1; continue
+        if ch in ARB:
+            out.append(ARB[ch]); i += 1; continue
+        if low in LATX:
+            out.append(LATX[low]); i += 1; continue
+        if 0xC0 <= code <= 0x24F:
+            dec = "".join(c for c in unicodedata.normalize("NFD", ch) if not unicodedata.combining(c))
+            out.append(dec if dec != ch else ch); i += 1; continue
+        if 0x300 <= code <= 0x36F:
+            i += 1; continue
+        out.append(ch); i += 1
+    return "".join(out)
+
+def second_lines(events):
+    """Group (time, word) events into one line per second."""
+    buckets = {}
+    for t, w in events:
+        buckets.setdefault(int(t // 1), []).append(w)
+    lines, prev = [], None
+    for sec in sorted(buckets):
+        line = " ".join(buckets[sec])
+        if line != prev:
+            lines.append((sec, line))
+        prev = line
+    return lines
+
+def main():
+    url = input("Paste the YouTube link: ").strip()
+    vid = video_id(url)
+    if not vid:
+        print("That link does not look like a YouTube video link."); return
+    lang = input("Language code (en, hi, es...) or blank to auto-detect: ").strip().lower()
+    t0 = time.time()
+    result = try_captions(vid, lang or "en")
+    if result:
+        entries, kind = result
+        print(f"Found {kind} - no audio download needed.")
+        events = []
+        for start, end, text in entries:
+            words = text.split()
+            span = max(0.5, (end or start + 2) - start)
+            for i, w in enumerate(words):
+                events.append((start + span * i / max(1, len(words)), w))
+    else:
+        print("No captions found. Transcribing the audio instead (slower)...")
+        events, kind = transcribe_audio(vid, lang or None)
+    lines = second_lines(events)
+    header = f"Source: https://www.youtube.com/watch?v={vid}\nType: {kind}\n\n"
+    path1 = OUT / f"{vid}_original.txt"
+    with path1.open("w", encoding="utf-8") as fh:
+        fh.write(header)
+        for sec, line in lines:
+            fh.write(f"[{fmt_sec(sec)}] {line}\n")
+    path2 = OUT / f"{vid}_english_letters.txt"
+    with path2.open("w", encoding="utf-8") as fh:
+        fh.write(header)
+        for sec, line in lines:
+            fh.write(f"[{fmt_sec(sec)}] {romanize(line)}\n")
+    print(f"Done in {time.time()-t0:.0f}s - saved two files:")
+    print(f"  1) {path1}  (original words, own script)")
+    print(f"  2) {path2}  (same words in English letters, as pronounced)")
+    try:
+        subprocess.run(["notepad", str(path1)])
+        subprocess.run(["notepad", str(path2)])
+    except Exception:
+        pass
+
+if __name__ == "__main__":
+    main()
+</script>
+
+    <script type="text/plain" id="src-readme-md"># YouTube Transcribe Downloader
+
+Paste a YouTube link and get the exact words — second by second, in the
+original language, and in English letters with correct pronunciation.
+Captions first, a fast Whisper fallback, and an optional API key for
+faster, sharper transcribing. No account needed.
+
+## Two ways to use it
+
+| | Way 1 — Fully online (API key) | Way 2 — On your computer (no key) |
+|---|---|---|
+| Install anything | Nothing at all | Python, once |
+| Terminal needed | Never | Never — double-click only |
+| Works on phone / tablet | Yes | No |
+| Videos with no captions | Provider listens to a sound file you pick | The pack fetches the sound itself |
+| Your key | Stays in the open tab, sent only to its own provider | Not used |
+
+## Way 1 — Fully online (GitHub Pages)
+
+Publish this page once, and anyone can use it from any browser:
+
+1. Push this folder to a GitHub repository (it already contains
+   `index.html` and this `README.md`).
+2. In the repo, open **Settings → Pages**, choose **Deploy from a
+   branch**, pick your main branch and the root folder, and save.
+3. GitHub gives you a public link. Anyone who opens it can use the
+   tool immediately — nothing to install, nothing to download.
+
+Then, on the page itself:
+
+1. On Step 2 (choose Way 1), paste your own API key — it connects
+   by itself, no button to tap, and a correct key takes you straight
+   to Step 3. The provider is detected from the key, its
+   models are fetched, and the best model for the transcript is picked
+   automatically.
+2. Paste a YouTube link and click **Get the transcript** — or pick a
+   sound / video file in the words box and let the provider listen.
+3. The connected model checks every word, and **Save both files**
+   downloads the two transcript files.
+
+Supported keys include Groq, OpenAI, Google Gemini, DeepSeek,
+NVIDIA, Anthropic, xAI, Perplexity, Fireworks, Cerebras, Zhipu and
+Hugging Face. One **OpenRouter** key opens models from 100+
+providers. Keys with no recognisable shape are refused rather than
+guessed — a key is only ever sent to the provider it belongs to.
+The key lives only in the open browser tab: it is never saved,
+never committed, and never put in a download.
+
+## Way 2 — On your computer (offline pack)
+
+1. Double-click `start_html.bat` — it serves the folder on your own
+   PC and opens the page through its local web address
+   (http://127.0.0.1:8765), so API keys can connect. Do not open the
+   HTML file by double-clicking it: a page opened as a file cannot
+   connect any key.
+2. For a video with no captions at all, double-click
+   `run_transcript_v2.bat`. It sets itself up on first run
+   (Python required), then listens to the audio with
+   faster-whisper `large-v3-turbo` and writes the words locally.
+
+## What you get — always two files
+
+Both files go second by second, times in seconds only, like
+`[00:01]`, `[00:02]`:
+
+1. **Original words** — the video's own language, in its own script.
+2. **English letters** — the same words, in the same order, spelled
+   the way each word is pronounced, so anyone can read them aloud.
+
+## Honest limits
+
+- Words from the uploader's own captions are exact. Auto-generated
+  captions can contain mistakes, especially names and fast lines.
+- Singing over music can make any speech model mishear a word; a
+  misheard word stays wrong even after the AI check.
+- A web page cannot pull the audio out of a YouTube video by
+  itself. Online, the provider listens to a file you pick; offline,
+  the pack fetches the audio for you.
+- Keys only connect when the page is opened through a web address
+  (GitHub Pages, or the pack's start_html.bat local server). A page
+  opened by double-clicking the HTML file cannot connect any key.
+
+## Project structure
+
+- `index.html` — the whole app in one page (the GitHub Pages entry)
+- `Transcript.html` — the same page, for opening from your computer
+- `start_html.bat` — one-click local server + opener (use this one, so keys can connect)
+- `Open_Transcriber.bat` — the same local server opener
+- `run_transcript_v2.bat` + `yt_transcript_v2.py` — offline listener
+- `README.txt` — the same guide in plain text
+
+## License
+
+MIT. Transcripts belong to the video's creator; keep them for
+your own use.
+</script>
+
+    <script type="text/plain" id="src-readme">YouTube Transcribe Downloader v2
+================================================
+
+TWO WAYS TO USE IT
+WAY 1 - FULLY ONLINE (API KEY): publish this folder on GitHub
+Pages (Settings -> Pages -> deploy from branch) or just open the
+page, choose Way 1 and paste your API key - it connects
+by itself, no button to tap, and a correct key takes you
+straight to Step 3 - and everything happens in the browser -
+listening, word-checking and both files. No installs, no
+packages, no terminal, works on any device.
+WAY 2 - ON YOUR COMPUTER (NO KEY): use the pack below.
+
+START HERE - ONE CLICK (computer pack)
+1. Unzip everything into one folder.
+2. Double-click start_html.bat.
+   That one click serves the folder on your PC and opens the page
+   through its local web address (http://127.0.0.1:8765), so API
+   keys can connect. Do NOT open Transcript.html by double-clicking
+   it - a page opened as a file cannot connect any key.
+3. Paste a YouTube link, click "Get the transcript", then use
+   "Save both files".
+The folder also contains README.md and index.html, ready to
+push to GitHub as-is for the fully online Way 1.
+
+WHAT IT DOES
+- Paste a YouTube link, get the words as TWO separate
+  files - never both inside one file:
+  File 1: the words in the original language, in its own script.
+  File 2: the same words in the same order, written in English
+  letters, spelled the way each word is pronounced.
+- Both files go second by second: one line per second, with the
+  words spoken in that second. Times are in seconds only -
+  no milliseconds.
+- First tries the video's own captions: seconds, and exact if the
+  uploader provided them (auto captions are labelled as auto).
+- If there are no captions, it listens to the audio and transcribes
+  it with Whisper large-v3-turbo - about 5-6x faster than large-v3.
+- Keeps the original spoken language. Never translates.
+
+FASTER WITH YOUR OWN KEY (OPTIONAL)
+- Step 2 of the page (choose Way 1) takes an API key from
+  Groq, OpenAI, Google Gemini, DeepSeek, NVIDIA, OpenRouter,
+  Hugging Face and many more. Just paste the key - it is
+  checked automatically, the page works out the provider by itself,
+  fetches all of its models, and picks the best one for transcripts.
+- After you fetch the transcript, the connected model checks the words
+  and fixes clear mistakes; both saved files are then made from
+  the checked words. It cannot recover a word that was misheard
+  in the first place, so sung words can still be wrong.
+- With a Groq or OpenAI key, the provider can also listen to a
+  sound file you choose and write the words down with times.
+- A key is only ever sent to the provider it belongs to.
+- The key stays in the open tab only. It is never saved, never
+  put in any download, and is sent only to its own provider.
+- Keys only connect when the page is opened through a web
+  address (GitHub Pages, or start_html.bat's local server). A key
+  pasted into a page opened by double-clicking the file cannot
+  connect - the page will
+  tell you in plain words.
+
+HOW TO RUN (one click)
+1. Put run_transcript_v2.bat and yt_transcript_v2.py in one new folder.
+2. Double-click run_transcript_v2.bat.
+3. Paste the YouTube link, press Enter.
+4. Type the language code if you know it (en, hi, es, ja...).
+   Blank = auto-detect, but typing it is more accurate, especially
+   for songs.
+5. Two files save into a "transcripts" folder and open in Notepad:
+   one with the original words, one in English letters.
+
+FIRST RUN
+- Needs Python installed (free: python.org - tick "Add python.exe
+  to PATH" during setup).
+- Installs yt-dlp and faster-whisper, and downloads the speech
+  model (~800 MB) once. Later runs skip all of that.
+
+HONEST LIMITS
+- Sung words over music can be misheard by any speech model. If a
+  word is heard wrong, it is wrong in the file. Only the uploader's
+  own captions are truly exact.
+- Needs internet for the YouTube link and the first-run downloads.
+  Transcribing itself runs on your PC.
+</script>
+
+    <script>
+      (function(){
+        "use strict";
+        var $ = function(id){ return document.getElementById(id); };
+        var urlInput=$("url-input"), langSelect=$("lang-select");
+        var statusEl=$("status"), status2El=$("status2");
+        var transcriptEl=$("transcript");
+        var state={ videoId:null, title:"", entries:[], tracks:[] };
+
+        /* ---------- every language on Earth, for the dropdown ----------
+           The complete ISO 639-1 language list, plus widely used languages
+           and written forms that carry their own codes (Cantonese, Filipino,
+           Simplified and Traditional Chinese, Brazilian Portuguese and
+           more) - around 200 languages in all, not just a few. Each value
+           is the language code the caption picker and the listening models
+           expect, so picking one steers both. */
+        var LANGUAGES=[
+          ["ab","Abkhazian"],["aa","Afar"],["ace","Acehnese"],["af","Afrikaans"],["ak","Akan"],["sq","Albanian"],["am","Amharic"],["ar","Arabic"],["an","Aragonese"],["hy","Armenian"],["as","Assamese"],["av","Avaric"],["ae","Avestan"],["ay","Aymara"],["az","Azerbaijani"],
+          ["ban","Balinese"],["bm","Bambara"],["ba","Bashkir"],["eu","Basque"],["be","Belarusian"],["bn","Bengali"],["bho","Bhojpuri"],["bh","Bihari"],["bi","Bislama"],["brx","Bodo"],["bs","Bosnian"],["br","Breton"],["bg","Bulgarian"],["my","Burmese"],
+          ["yue","Cantonese"],["ca","Catalan"],["ceb","Cebuano"],["ch","Chamorro"],["ce","Chechen"],["ny","Chichewa"],["zh","Chinese"],["zh-Hans","Chinese (Simplified)"],["zh-Hant","Chinese (Traditional)"],["cu","Church Slavic"],["cv","Chuvash"],["kw","Cornish"],["co","Corsican"],["cr","Cree"],["hr","Croatian"],["cs","Czech"],
+          ["da","Danish"],["doi","Dogri"],["nl","Dutch"],["dz","Dzongkha"],
+          ["en","English"],["eo","Esperanto"],["et","Estonian"],["ee","Ewe"],
+          ["fo","Faroese"],["fj","Fijian"],["fil","Filipino"],["fi","Finnish"],["fr","French"],["ff","Fulah"],
+          ["gl","Galician"],["lg","Ganda"],["ka","Georgian"],["de","German"],["el","Greek"],["kl","Greenlandic"],["gn","Guarani"],["gu","Gujarati"],
+          ["ht","Haitian Creole"],["ha","Hausa"],["haw","Hawaiian"],["he","Hebrew"],["hi","Hindi"],["ho","Hiri Motu"],["hmn","Hmong"],["hu","Hungarian"],
+          ["is","Icelandic"],["io","Ido"],["ig","Igbo"],["id","Indonesian"],["ia","Interlingua"],["ie","Interlingue"],["iu","Inuktitut"],["ik","Inupiaq"],["ga","Irish"],["it","Italian"],
+          ["ja","Japanese"],["jv","Javanese"],
+          ["kn","Kannada"],["kr","Kanuri"],["ks","Kashmiri"],["kk","Kazakh"],["km","Khmer"],["ki","Kikuyu"],["rw","Kinyarwanda"],["kv","Komi"],["kg","Kongo"],["gom","Konkani"],["ko","Korean"],["kj","Kuanyama"],["ku","Kurdish"],["kmr","Kurdish (Kurmanji)"],["ckb","Kurdish (Sorani)"],["ky","Kyrgyz"],
+          ["lo","Lao"],["la","Latin"],["lv","Latvian"],["li","Limburgish"],["ln","Lingala"],["lt","Lithuanian"],["lu","Luba-Katanga"],["lb","Luxembourgish"],
+          ["mk","Macedonian"],["mai","Maithili"],["mg","Malagasy"],["ms","Malay"],["ml","Malayalam"],["dv","Maldivian (Divehi)"],["mt","Maltese"],["mni","Manipuri"],["gv","Manx"],["mi","M\u0101ori"],["mr","Marathi"],["mh","Marshallese"],["mn","Mongolian"],
+          ["na","Nauru"],["nv","Navajo"],["ng","Ndonga"],["ne","Nepali"],["nd","Northern Ndebele"],["se","Northern Sami"],["nso","Northern Sotho"],["no","Norwegian"],["nb","Norwegian Bokm\u00e5l"],["nn","Norwegian Nynorsk"],
+          ["oc","Occitan"],["or","Odia (Oriya)"],["oj","Ojibwa"],["om","Oromo"],["os","Ossetian"],
+          ["pi","Pali"],["ps","Pashto"],["fa","Persian"],["pl","Polish"],["pt","Portuguese"],["pt-BR","Portuguese (Brazil)"],["pa","Punjabi"],
+          ["qu","Quechua"],
+          ["ro","Romanian"],["rm","Romansh"],["rn","Rundi"],["ru","Russian"],
+          ["sm","Samoan"],["sg","Sango"],["sa","Sanskrit"],["sat","Santali"],["sc","Sardinian"],["gd","Scottish Gaelic"],["sr","Serbian"],["sr-Latn","Serbian (Latin)"],["sn","Shona"],["ii","Sichuan Yi"],["sd","Sindhi"],["si","Sinhala"],["sk","Slovak"],["sl","Slovenian"],["so","Somali"],["nr","Southern Ndebele"],["st","Southern Sotho"],["es","Spanish"],["es-419","Spanish (Latin America)"],["su","Sundanese"],["sw","Swahili"],["ss","Swati"],["sv","Swedish"],
+          ["tl","Tagalog"],["ty","Tahitian"],["tg","Tajik"],["ta","Tamil"],["tt","Tatar"],["te","Telugu"],["th","Thai"],["bo","Tibetan"],["ti","Tigrinya"],["to","Tongan"],["ts","Tsonga"],["tn","Tswana"],["tr","Turkish"],["tk","Turkmen"],["tw","Twi"],
+          ["uk","Ukrainian"],["ur","Urdu"],["ug","Uyghur"],["uz","Uzbek"],
+          ["ve","Venda"],["vi","Vietnamese"],["vo","Volap\u00fck"],
+          ["wa","Walloon"],["cy","Welsh"],["fy","Western Frisian"],["wo","Wolof"],
+          ["xh","Xhosa"],
+          ["yi","Yiddish"],["yo","Yoruba"],
+          ["za","Zhuang"],["zu","Zulu"]
+        ];
+        LANGUAGES.forEach(function(pair){
+          var opt=document.createElement("option");
+          opt.value=pair[0];
+          opt.textContent=pair[1];
+          langSelect.appendChild(opt);
+        });
+
+        /* ---------- premium custom language dropdown ----------
+           A polished replacement for the browser's plain list: a button
+           showing the current pick, and a floating panel with a search
+           box (type to find a language fast) over a scrollable list of
+           every language, Auto pinned at the top. Picking an item sets
+           the hidden real select's value, so caption picking, listening
+           and the word check all read the language exactly as before.
+           Keyboard: arrows move, Enter picks, Escape closes. */
+        (function buildLangDropdown(){
+          var dd=$("lang-dd"), btn=$("lang-dd-btn"), label=$("lang-dd-label"),
+              codeEl=$("lang-dd-code"), search=$("lang-search"), list=$("lang-dd-list"),
+              countEl=$("lang-dd-count"), noneEl=$("lang-dd-none");
+          if(!dd || !btn || !list) return;
+          var ALL=[{ code:"", name:"Auto \u2014 work it out" }].concat(
+            LANGUAGES.map(function(p){ return { code:p[0], name:p[1] }; }));
+          var items=[], activeIdx=-1;
+          function tickSvg(){ return '<svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>'; }
+          function render(filter){
+            var q=(filter||"").trim().toLowerCase();
+            list.innerHTML=""; items=[]; activeIdx=-1;
+            var shown=0;
+            ALL.forEach(function(L){
+              if(q && L.name.toLowerCase().indexOf(q)<0 && L.code.toLowerCase().indexOf(q)<0) return;
+              shown++;
+              var li=document.createElement("li");
+              li.className="lang-dd-item"+(L.code===""? " auto-item":"")+((langSelect.value||"")===L.code? " selected":"");
+              li.setAttribute("role","option");
+              li.setAttribute("aria-selected", (langSelect.value||"")===L.code? "true":"false");
+              li.dataset.code=L.code;
+              li.innerHTML=tickSvg()+'<span class="nm"></span>'+(L.code? '<span class="cd"></span>':"");
+              li.querySelector(".nm").textContent=L.name;
+              var cd=li.querySelector(".cd"); if(cd) cd.textContent=L.code;
+              li.addEventListener("click", function(){ pick(L); });
+              li.addEventListener("mousemove", function(){ setActive(items.indexOf(li)); });
+              list.appendChild(li); items.push(li);
+            });
+            noneEl.style.display=shown? "none":"block";
+            countEl.textContent=q? shown+" of "+ALL.length+" languages" : ALL.length+" languages \u00b7 Auto is at the top";
+          }
+          function setActive(i){
+            if(activeIdx>=0 && items[activeIdx]) items[activeIdx].classList.remove("active");
+            activeIdx=i;
+            if(i>=0 && items[i]){
+              items[i].classList.add("active");
+              items[i].scrollIntoView({ block:"nearest" });
+            }
+          }
+          function syncButton(){
+            var v=langSelect.value||"";
+            if(!v){ label.textContent="Auto \u2014 work it out"; codeEl.style.display="none"; codeEl.textContent=""; return; }
+            for(var i=0;i<LANGUAGES.length;i++){
+              if(LANGUAGES[i][0]===v){
+                label.textContent=LANGUAGES[i][1];
+                codeEl.textContent=v; codeEl.style.display="";
+                return;
+              }
+            }
+            label.textContent=v; codeEl.style.display="none";
+          }
+          function pick(L){
+            langSelect.value=L.code;
+            langSelect.dispatchEvent(new Event("change", { bubbles:true }));
+            syncButton();
+            close();
+            btn.focus();
+          }
+          function open(){
+            render("");
+            search.value="";
+            dd.classList.add("open");
+            btn.setAttribute("aria-expanded","true");
+            var sel=list.querySelector(".lang-dd-item.selected");
+            if(sel) setTimeout(function(){ sel.scrollIntoView({ block:"center" }); }, 30);
+            setTimeout(function(){ search.focus(); }, 30);
+          }
+          function close(){
+            dd.classList.remove("open");
+            btn.setAttribute("aria-expanded","false");
+          }
+          btn.addEventListener("click", function(){
+            if(dd.classList.contains("open")) close(); else open();
+          });
+          search.addEventListener("input", function(){ render(search.value); });
+          search.addEventListener("keydown", function(e){
+            if(e.key==="ArrowDown"){ e.preventDefault(); setActive(Math.min(items.length-1, activeIdx+1)); }
+            else if(e.key==="ArrowUp"){ e.preventDefault(); setActive(Math.max(0, activeIdx-1)); }
+            else if(e.key==="Enter"){
+              e.preventDefault();
+              var li=items[activeIdx]||items[0];
+              if(li){
+                var code=li.dataset.code||"";
+                for(var i=0;i<ALL.length;i++) if(ALL[i].code===code){ pick(ALL[i]); break; }
+              }
+            }
+            else if(e.key==="Escape"){ close(); btn.focus(); }
+          });
+          list.addEventListener("keydown", function(e){
+            if(e.key==="Escape"){ close(); btn.focus(); }
+          });
+          document.addEventListener("click", function(e){
+            if(dd.classList.contains("open") && !dd.contains(e.target)) close();
+          });
+          document.addEventListener("keydown", function(e){
+            if(e.key==="Escape" && dd.classList.contains("open")) close();
+          });
+          langSelect.addEventListener("change", syncButton);
+          syncButton();
+        })();
+
+        /* ---------- status helpers ----------
+           Every message carries its own close button, and every finished
+           message (ok / warn / err) clears itself after a few seconds -
+           a message never sits on the screen stuck, covering the work.
+           Only a live "working" (info) message stays until it is replaced. */
+        function setStatus(el, kind, html){
+          if(el._statusTimer){ clearTimeout(el._statusTimer); el._statusTimer=null; }
+          el.className="status show "+kind;
+          el.innerHTML=html+'<button type="button" class="status-x" aria-label="Dismiss this message">&times;</button>';
+          var x=el.querySelector(".status-x");
+          if(x) x.addEventListener("click", function(){ clearStatus(el); });
+          if(kind!=="info"){
+            el._statusTimer=setTimeout(function(){ clearStatus(el); }, 14000);
+          }
+        }
+        function clearStatus(el){
+          if(el._statusTimer){ clearTimeout(el._statusTimer); el._statusTimer=null; }
+          el.className="status"; el.innerHTML="";
+        }
+
+        /* ---------- URL parsing ---------- */
+        function parseVideoId(raw){
+          if(!raw) return null;
+          raw=raw.trim();
+          var m=raw.match(/^[A-Za-z0-9_-]{11}$/);
+          if(m) return raw;
+          m=raw.match(/(?:youtube\.com\/(?:watch\?[^#]*v=|shorts\/|live\/|embed\/|v\/)|youtu\.be\/|youtube-nocookie\.com\/embed\/)([A-Za-z0-9_-]{11})/);
+          if(m) return m[1];
+          m=raw.match(/[?&]v=([A-Za-z0-9_-]{11})/);
+          return m?m[1]:null;
+        }
+        function safeName(){
+          var t=(state.title||"").replace(/[\\/:*?"<>|]+/g,"").replace(/\s+/g," ").trim();
+          return (t? t.slice(0,80) : ("youtube-"+(state.videoId||"transcript")));
+        }
+
+        /* ---------- video details: title, channel, length, views ----------
+           The preview card used to depend on one single address for the
+           title - when that one call failed, the card showed nothing but
+           "Your video". Now three independent sources are tried in
+           order: YouTube's own embed details, the noembed mirror of the
+           same details, and a public Invidious mirror (the only one
+           that also gives the length and view count). Whichever answers
+           fills the card, and the player-API caption route below fills
+           in anything still missing when the transcript is fetched. */
+        var INVIDIOUS_HOSTS=["https://inv.nadeko.net","https://invidious.nerdvpn.de","https://yt.cdaut.de"];
+        function renderFacts(){
+          var parts=[];
+          if(state.lengthSec) parts.push("Length "+fmtSec(state.lengthSec));
+          if(state.views!=null && state.views!=="") parts.push(new Intl.NumberFormat("en",{notation:"compact",maximumFractionDigits:1}).format(+state.views||0)+" views");
+          parts.push("Video ID "+state.videoId);
+          var vf=$("v-facts"); if(vf) vf.textContent=parts.join("  \u00b7  ");
+        }
+        function applyMeta(m){
+          if(!m) return;
+          if(m.title){ state.title=m.title; $("v-title").textContent=m.title; }
+          if(m.author){
+            var va=$("v-author"); va.textContent="";
+            va.appendChild(document.createTextNode("by "));
+            if(m.authorUrl){
+              var a=document.createElement("a");
+              a.href=m.authorUrl; a.target="_blank"; a.rel="noopener"; a.textContent=m.author;
+              va.appendChild(a);
+            }else{
+              va.appendChild(document.createTextNode(m.author));
+            }
+          }
+          if(m.lengthSec) state.lengthSec=m.lengthSec;
+          if(m.views!=null) state.views=m.views;
+          renderFacts();
+        }
+        function metaFromOembed(id){
+          return withTimeout(fetch("https://www.youtube.com/oembed?url="+encodeURIComponent("https://www.youtube.com/watch?v="+id)+"&format=json"), 10000)
+            .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+            .then(function(d){ if(!d || !d.title) throw 0; return { title:d.title||"", author:d.author_name||"", authorUrl:d.author_url||"" }; });
+        }
+        function metaFromNoembed(id){
+          return withTimeout(fetch("https://noembed.com/embed?url="+encodeURIComponent("https://www.youtube.com/watch?v="+id)), 10000)
+            .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+            .then(function(d){ if(!d || d.error || !d.title) throw 0; return { title:d.title||"", author:d.author_name||"", authorUrl:d.author_url||"" }; });
+        }
+        function metaFromInvidious(id){
+          var chain=Promise.reject(new Error("start"));
+          INVIDIOUS_HOSTS.forEach(function(base){
+            chain=chain.catch(function(){
+              return withTimeout(fetch(base+"/api/v1/videos/"+id), 10000)
+                .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+                .then(function(d){ if(!d || !d.title) throw 0; return { title:d.title||"", author:d.author||"", authorUrl:d.authorUrl? ("https://www.youtube.com"+d.authorUrl) : "", lengthSec:+d.lengthSeconds||0, views:(d.viewCount!=null? d.viewCount : null) }; });
+            });
+          });
+          return chain;
+        }
+        function loadVideoDetails(id){
+          metaFromOembed(id)
+            .catch(function(){ return metaFromNoembed(id); })
+            .catch(function(){ return metaFromInvidious(id); })
+            .then(function(m){
+              applyMeta(m);
+              /* Length and views only come from the mirror - fetch them
+                 quietly in the background if the card still lacks them. */
+              if(!state.lengthSec) metaFromInvidious(id).then(applyMeta).catch(function(){});
+            })
+            .catch(function(){
+              if(!state.title){
+                $("v-title").textContent="Your video";
+                $("v-author").textContent="The title couldn\u2019t load \u2014 the preview and the transcript still work.";
+              }
+            });
+        }
+
+        /* ---------- video loading ---------- */
+        function loadVideo(){
+          var id=parseVideoId(urlInput.value);
+          if(!id){
+            setStatus(statusEl,"err","That link doesn&rsquo;t look right. Copy the full YouTube link and try again.");
+            return null;
+          }
+          state.videoId=id; state.entries=[]; state.tracks=[];
+          state.title=""; state.lengthSec=0; state.views=null;
+          clearStatus(statusEl);
+          $("video-box").classList.add("show");
+          $("preview-empty").style.display="none";
+          $("thumb-wrap").classList.remove("playing");
+          var vm=document.querySelector("#video-box .video-meta"); if(vm) vm.style.display="";
+          $("thumb-wrap").innerHTML='<img id="thumb-img" alt="Video thumbnail" src="https://i.ytimg.com/vi/'+id+'/maxresdefault.jpg" onerror="this.onerror=null;this.src=\'https://i.ytimg.com/vi/'+id+'/hqdefault.jpg\'" />'+
+            '<button class="play-btn" id="play-btn" type="button" aria-label="Play video"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button>';
+          $("play-btn").addEventListener("click", playVideo);
+          $("v-title").textContent="Loading\u2026";
+          $("v-author").textContent="";
+          renderFacts();
+          var watch=$("watch-link");
+          watch.href="https://www.youtube.com/watch?v="+id;
+          watch.style.display="inline-flex";
+          updateStats();
+          loadVideoDetails(id);
+          return id;
+        }
+        function playVideo(){
+          var wrap=$("thumb-wrap");
+          wrap.classList.add("playing");
+          var vm=document.querySelector("#video-box .video-meta"); if(vm) vm.style.display="none";
+          wrap.innerHTML='<iframe title="YouTube video player" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" allowfullscreen src="https://www.youtube-nocookie.com/embed/'+state.videoId+'?autoplay=1&rel=0"></iframe>';
+        }
+        urlInput.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); $("fetch-btn").click(); }});
+        urlInput.addEventListener("paste", function(){ setTimeout(function(){ loadVideo(); }, 60); });
+
+        /* ---------- API key: find the provider, fetch its models, pick the best ----------
+           The key lives only in this variable, in this tab. It is never saved,
+           never put in a download, and is sent only to its own provider. */
+        var ai={ connected:false, key:"", provider:null, models:[], chatModel:"", audioModel:"", chatModels:[], audioModels:[] };
+        /* ---------- optional worker: transcribe ANY video from its link ----------
+           A web page alone cannot pull the sound out of a YouTube video -
+           YouTube blocks it. If you deploy the free worker and paste its
+           address here, Step 3 sends the LINK to the worker's
+           /api/transcribe_link endpoint instead: the worker fetches the
+           sound on the server and passes it to your connected provider's
+           listening model (Whisper), and the timed words come back here.
+           Leave it empty ("") and nothing changes: the page tries the
+           video's captions first, then the listening panel (a sound file
+           you pick), then the computer pack - in that order. */
+        var WORKER_URL="";
+        /* ---------- online helper address (Step 2 field) ----------
+           Pasted once, kept in this variable for the whole visit - the
+           page is a single static file with no account and no storage,
+           so the address lives in memory only and is gone when the tab
+           closes. Setting it switches Step 3's link route on: the
+           worker fetches the sound server-side, which is the strongest
+           online path - a page alone cannot promise captions, because
+           YouTube blocks pages from reading them reliably. */
+        (function wireWorkerField(){
+          var inp=$("worker-url"); if(!inp) return;
+          var wst=$("worker-status"), t=null;
+          function apply(){
+            var v=(inp.value||"").trim().replace(/\/+$/,"");
+            if(!v){
+              WORKER_URL="";
+              clearStatus(wst);
+              refreshRouteNote();
+              return;
+            }
+            if(!/^https?:\/\/[^\s]+$/i.test(v)){
+              setStatus(wst,"warn","That doesn&rsquo;t look like a web address yet &mdash; it should start with https:// and have no spaces.");
+              return;
+            }
+            WORKER_URL=v;
+            setStatus(wst,"ok","Online helper set: <b>"+v.replace(/</g,"&lt;")+"</b> &mdash; YouTube links can now be transcribed fully online on Step 3, with your connected key listening.");
+            refreshRouteNote();
+          }
+          inp.addEventListener("paste", function(){ setTimeout(apply, 60); });
+          inp.addEventListener("input", function(){
+            if(t) clearTimeout(t);
+            t=setTimeout(apply, 700);
+          });
+          inp.addEventListener("change", apply);
+          inp.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); apply(); } });
+        })();
+        function refreshRouteNote(){
+          var el=$("route-note"); if(!el) return;
+          if(WORKER_URL && ai.connected && ai.audioModel && ai.provider && ai.provider.type==="openai"){
+            el.textContent="Link route is on: your worker fetches the sound and "+ai.provider.name+" writes the words.";
+          }else if(WORKER_URL){
+            el.textContent="Worker is set - connect a Groq or OpenAI key in Step 2 to transcribe links from their sound. Until then, captions come first.";
+          }else{
+            el.textContent="No online helper set, so the order is: captions first (public caption servers, then YouTube), then the listening panel, then the computer pack. Add the helper address on Step 2 to transcribe any link fully online.";
+          }
+        }
+        var apiStatusEl=$("api-status");
+        /* One entry per family of providers. Prefixes are how each provider's
+           keys actually start; aggregators like OpenRouter and Hugging Face
+           alone open up models from 100+ providers behind a single key. */
+        var PROVIDERS=[
+          { id:"anthropic", name:"Anthropic (Claude)", type:"anthropic", base:"https://api.anthropic.com/v1",
+            match:function(k){ return k.indexOf("sk-ant-")===0; } },
+          { id:"openrouter", name:"OpenRouter", type:"openai", base:"https://openrouter.ai/api/v1",
+            match:function(k){ return k.indexOf("sk-or-")===0; } },
+          { id:"groq", name:"Groq", type:"openai", base:"https://api.groq.com/openai/v1",
+            match:function(k){ return k.indexOf("gsk_")===0; } },
+          { id:"nvidia", name:"NVIDIA", type:"openai", base:"https://integrate.api.nvidia.com/v1",
+            match:function(k){ return k.indexOf("nvapi-")===0; } },
+          { id:"xai", name:"xAI (Grok)", type:"openai", base:"https://api.x.ai/v1",
+            match:function(k){ return k.indexOf("xai-")===0; } },
+          { id:"perplexity", name:"Perplexity", type:"openai", base:"https://api.perplexity.ai",
+            match:function(k){ return k.indexOf("pplx-")===0; },
+            knownModels:["sonar","sonar-pro","sonar-reasoning","sonar-reasoning-pro","sonar-deep-research"] },
+          { id:"fireworks", name:"Fireworks AI", type:"openai", base:"https://api.fireworks.ai/inference/v1",
+            match:function(k){ return k.indexOf("fw_")===0; } },
+          { id:"cerebras", name:"Cerebras", type:"openai", base:"https://api.cerebras.cloud/v1",
+            match:function(k){ return k.indexOf("csk-")===0; } },
+          { id:"huggingface", name:"Hugging Face", type:"openai", base:"https://router.huggingface.co/v1",
+            match:function(k){ return k.indexOf("hf_")===0; } },
+          { id:"gemini", name:"Google Gemini", type:"gemini", base:"https://generativelanguage.googleapis.com/v1beta",
+            /* Gemini keys come in two shapes: the older "AIza..." keys and
+               the newer "AQ...." keys. Both belong to Google alone. */
+            match:function(k){ return k.indexOf("AQ.")===0 || /^AIza[0-9A-Za-z\-_]{20,}$/.test(k); } },
+          { id:"deepseek", name:"DeepSeek", type:"openai", base:"https://api.deepseek.com/v1",
+            match:function(k){ return /^sk-[0-9a-f]{32}$/i.test(k); } },
+          { id:"zhipu", name:"Zhipu AI (GLM)", type:"openai", base:"https://open.bigmodel.cn/api/paas/v4",
+            match:function(k){ return /^[0-9a-f]{32}\.[0-9A-Za-z\-_]{6,}$/.test(k); } },
+          { id:"openai", name:"OpenAI", type:"openai", base:"https://api.openai.com/v1",
+            /* Only keys that are OpenAI's alone: Anthropic, OpenRouter and
+               DeepSeek keys also start "sk-" but belong to their own makers,
+               and a key is only ever sent to the provider it belongs to. */
+            match:function(k){ return k.indexOf("sk-")===0 && k.indexOf("sk-ant-")!==0 && k.indexOf("sk-or-")!==0 && !/^sk-[0-9a-f]{32}$/i.test(k); } }
+        ];
+        /* Fallback model lists, used ONLY when a provider's live model list
+           cannot be fetched (no network, a blocked call, a timeout) - the
+           live list always wins when it answers, so a model the provider
+           has removed never appears from there. If a fallback model turns
+           out to be gone, aiChat and the listening flow step down to the
+           next one automatically, so a dead model never blocks anything. */
+        var FALLBACK_MODELS={
+          groq:["whisper-large-v3-turbo","whisper-large-v3","llama-3.3-70b-versatile","openai/gpt-oss-120b","openai/gpt-oss-20b","qwen/qwen3-32b","meta-llama/llama-4-scout-17b-16e-instruct","llama-3.1-8b-instant"],
+          openai:["gpt-4o-mini-transcribe","gpt-4o-transcribe","whisper-1","gpt-5","gpt-5-mini","gpt-4o","gpt-4o-mini"],
+          gemini:["gemini-2.5-flash","gemini-2.5-pro","gemini-2.0-flash"],
+          anthropic:["claude-sonnet-4-5","claude-opus-4-5","claude-haiku-4-5"],
+          openrouter:["openai/gpt-4o","anthropic/claude-sonnet-4.5","google/gemini-2.5-flash","deepseek/deepseek-chat","meta-llama/llama-3.3-70b-instruct"],
+          deepseek:["deepseek-chat","deepseek-reasoner"],
+          nvidia:["meta/llama-3.3-70b-instruct","meta/llama-3.1-405b-instruct","nvidia/llama-3.1-nemotron-70b-instruct"],
+          xai:["grok-4","grok-4-fast","grok-3"],
+          fireworks:["accounts/fireworks/models/llama-v3p3-70b-instruct","accounts/fireworks/models/qwen3-32b"],
+          cerebras:["llama-3.3-70b","gpt-oss-120b","qwen-3-32b"],
+          huggingface:["meta-llama/Llama-3.3-70B-Instruct","Qwen/Qwen3-32B","openai/gpt-oss-120b"],
+          zhipu:["glm-4.5","glm-4-flash"]
+        };
+        /* Providers whose keys carry no unique mark of their own (Mistral,
+           Together, Cohere and many more) are not guessed at - guessing
+           would mean sending the key to a company it may not belong to.
+           Their models are all reachable through one OpenRouter key, which
+           is how a single paste opens up models from 100+ providers. */
+        function providerById(id){
+          for(var i=0;i<PROVIDERS.length;i++) if(PROVIDERS[i].id===id) return PROVIDERS[i];
+          return null;
+        }
+        function jsonOrThrow(r){ if(!r.ok) throw new Error("http "+r.status); return r.json(); }
+        /* The model list ALWAYS comes live from the provider, fetched fresh
+           on every connect - never from a list baked into this page. A model
+           the provider has removed or decommissioned is not in its live
+           list, so it can never be shown here or picked. The one exception:
+           a provider with no working list endpoint falls back to its
+           knownModels, and even then a model that fails when called is
+           skipped automatically (see aiChat and the listening fallback). */
+        function fetchModelsFor(p, key){
+          var live;
+          if(p.type==="gemini"){
+            live=withTimeout(fetch(p.base+"/models", { headers:{ "x-goog-api-key":key } }), 12000).then(jsonOrThrow).then(function(d){
+              return (d.models||[]).filter(function(m){
+                return !m.supportedGenerationMethods || m.supportedGenerationMethods.indexOf("generateContent")>=0;
+              }).map(function(m){ return String(m.name||"").replace(/^models\//,""); }).filter(Boolean);
+            });
+          }else{
+            var headers={ "Authorization":"Bearer "+key };
+            if(p.type==="anthropic"){
+              headers={ "x-api-key":key, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" };
+            }
+            live=withTimeout(fetch(p.base+"/models", { headers:headers }), 12000).then(jsonOrThrow).then(function(d){
+              var arr=d.data||d.models||[];
+              return arr.map(function(m){ return typeof m==="string"? m : (m.id||m.name||""); }).filter(Boolean);
+            });
+          }
+          return live.then(function(models){
+            if(models.length) return models;
+            var fb=p.knownModels||FALLBACK_MODELS[p.id];
+            if(fb) return fb.slice();
+            return models;
+          }).catch(function(err){
+            /* A 401 or 403 means the provider read the key and refused it -
+               that is a real answer, so it is passed up, not papered over.
+               Anything else (no network, a blocked call, a timeout) falls
+               back to the provider's current list above, so the key still
+               connects and works from this page. */
+            if(err && /^http (401|403)$/.test(err.message||"")) throw err;
+            var fb=p.knownModels||FALLBACK_MODELS[p.id];
+            if(fb) return fb.slice();
+            throw err;
+          });
+        }
+        function isNotChat(id){
+          return /whisper|transcri|embedding|embed|moderation|tts|text-to-speech|speech|image|dall|realtime|audio|guard|rerank|safety|parakeet|canary|flux|sdxl|stable-diffusion|video/.test(id.toLowerCase());
+        }
+        function scoreChat(id){
+          var low=id.toLowerCase(), s=0;
+          var W=[["gpt-4o",60],["claude-sonnet",58],["gemini-2.5",56],["deepseek-chat",55],["gemini-2.0-flash",50],["llama-3.3",48],["deepseek-v3",48],["qwen3",44],["mistral-large",42],["qwen2.5",40],["claude",40],["gpt-4",38],["sonar",34],["gemini",30],["command-r",26],["llama",22],["mixtral",22],["gemma",14],["phi",10]];
+          for(var i=0;i<W.length;i++){ if(low.indexOf(W[i][0])>=0){ s=Math.max(s,W[i][1]); } }
+          if(low.indexOf("turbo")>=0||low.indexOf("flash")>=0) s+=4;
+          if(low.indexOf("70b")>=0||low.indexOf("72b")>=0||low.indexOf("405b")>=0) s+=4;
+          if(/mini|nano|lite|small|tiny|8b|7b|3b/.test(low)) s-=10;
+          if(low.indexOf("preview")>=0||low.indexOf("-exp")>=0) s-=6;
+          return s;
+        }
+        function rankAudioModels(models){
+          var pref=["whisper-large-v3-turbo","whisper-large-v3","gpt-4o-mini-transcribe","gpt-4o-transcribe","whisper-1","distil-whisper","parakeet","canary"];
+          var audio=models.filter(function(m){ return /whisper|transcri|parakeet|canary/.test(m.toLowerCase()); });
+          audio.sort(function(a,b){
+            function rank(x){ for(var i=0;i<pref.length;i++) if(x.toLowerCase().indexOf(pref[i])>=0) return i; return 99; }
+            return rank(a)-rank(b);
+          });
+          return audio;
+        }
+        function pickAudioModel(models){
+          return rankAudioModels(models)[0]||"";
+        }
+        function prettyModel(id){
+          return id.split("/").pop().replace(/[-_]/g," ");
+        }
+        function setConnectedUI(){
+          $("api-dot").classList.add("on");
+          $("api-badge").textContent="Connected \u00b7 "+ai.provider.name;
+          $("api-row").style.display="none";
+          ai.chatModels=ai.models.filter(function(m){ return !isNotChat(m); });
+          ai.chatModels.sort(function(a,b){ return scoreChat(b)-scoreChat(a); });
+          ai.audioModels=rankAudioModels(ai.models);
+          if(!ai.audioModel && ai.audioModels.length) ai.audioModel=ai.audioModels[0];
+          /* The Step 3 dropdown is the LISTENING model - the one that hears
+             the sound and writes the words down. Only listening models
+             (Whisper and friends) are ever offered here, never a chat-only
+             model like a llama, which cannot listen at all. The word-check
+             model (ai.chatModel) stays automatic in the background. */
+          var sel=$("model-select");
+          sel.innerHTML="";
+          if(ai.audioModels.length){
+            ai.audioModels.forEach(function(m, idx){
+              var opt=document.createElement("option");
+              opt.value=m;
+              opt.textContent=prettyModel(m)+(idx===0?" \u2014 best for listening":"");
+              if(m===ai.audioModel) opt.selected=true;
+              sel.appendChild(opt);
+            });
+          }else{
+            var opt2=document.createElement("option");
+            opt2.value=""; opt2.textContent="No listening model \u2014 captions only";
+            sel.appendChild(opt2);
+          }
+          $("api-found").textContent="Connected \u00b7 "+ai.provider.name+" \u00b7 "+ai.models.length+" models. "+
+            (ai.audioModel? "Listening: "+prettyModel(ai.audioModel)+". Words checked twice before saving." : "No listening model \u2014 captions only, checked by its best model.");
+          $("api-connected").classList.add("show");
+          var ah=$("audio-hint");
+          if(ah){
+            var canListen=!!(ai.audioModel && ai.provider && ai.provider.type==="openai");
+            ah.style.display=canListen? "" : "none";
+            if(canListen){ $("audio-provider").textContent=ai.provider.name; var ap2=$("audio-provider-2"); if(ap2) ap2.textContent=ai.provider.name; }
+          }
+          var pb=$("polish-btn");
+          if(pb) pb.style.display=ai.chatModel? "" : "none";
+          refreshRouteNote();
+        }
+        function setDisconnectedUI(){
+          ai={ connected:false, key:"", provider:null, models:[], chatModel:"", audioModel:"", chatModels:[], audioModels:[] };
+          $("api-dot").classList.remove("on");
+          $("api-badge").textContent="Not connected";
+          $("api-row").style.display="";
+          $("api-connected").classList.remove("show");
+          $("api-key").value="";
+          var cb=$("api-connect"); if(cb) cb.style.display="none";
+          connectInFlight=false; lastAutoKey="";
+          if(autoTimer){ clearTimeout(autoTimer); autoTimer=null; }
+          var ah2=$("audio-hint"); if(ah2) ah2.style.display="none";
+          var pb2=$("polish-btn"); if(pb2) pb2.style.display="none";
+          clearStatus(apiStatusEl);
+          refreshRouteNote();
+        }
+        $("model-select").addEventListener("change", function(){
+          ai.audioModel=this.value;
+          if(ai.audioModel) setStatus(statusEl,"ok","Now listening with "+prettyModel(ai.audioModel)+" from "+ai.provider.name+".");
+        });
+        $("api-disconnect").addEventListener("click", function(){
+          setDisconnectedUI();
+          setStatus(apiStatusEl,"info","Disconnected. Your key is forgotten.");
+        });
+        /* ---------- AUTOMATIC connect: no buttons to tap ----------
+           The moment a complete key is pasted (or typed) into the box,
+           the page checks it by itself: it finds the provider from the
+           key's shape, fetches that provider's live model list, picks
+           the best listening and word-check models, and - when the key
+           checks out - takes the user straight to Step 3. No "Fetch &
+           Connect" click, no "Continue" click. A key that fails stays
+           on Step 2 with the real reason, and a "Try again" button
+           appears only then, for a manual retry. The same key is never
+           auto-checked twice: a failed key is retried only when it
+           changes, so the page never hammers a provider. */
+        var connectInFlight=false, lastAutoKey="", autoTimer=null;
+        function showRetry(show){
+          var b=$("api-connect"); if(!b) return;
+          b.style.display=show? "" : "none";
+          b.disabled=false;
+        }
+        function goToStep3(){
+          /* The nav script enables #to-step3 the moment the connected
+             panel appears (MutationObserver), and its click handler
+             sets the mode label and shows Step 3 - so clicking it here
+             is exactly the user's own Continue tap, done for them. */
+          var c=$("to-step3");
+          if(c && !c.disabled){ c.click(); return; }
+          setTimeout(function(){
+            var c2=$("to-step3");
+            if(c2 && !c2.disabled) c2.click();
+          }, 350);
+        }
+        function attemptConnect(){
+          if(connectInFlight || ai.connected) return;
+          var key=($("api-key").value||"").trim();
+          /* Opened as a local file (file://), no provider will answer this
+             page at all - every key fails the same way, and it is not the
+             key's fault. Say exactly that, in plain words, and point to
+             the proper way in, instead of blaming the provider. */
+          if(window.location.protocol==="file:"){
+            setStatus(apiStatusEl,"warn","<b>This page was opened as a file, so no key can connect here.</b> Your key is fine &mdash; providers only answer pages opened through a web address. Double-click <b>start_html.bat</b> in the pack folder to open this page the proper way, then paste your key there.");
+            return;
+          }
+          if(!key){
+            setStatus(apiStatusEl,"err","Paste your key first &mdash; it connects by itself, no button to tap.");
+            return;
+          }
+          lastAutoKey=key;
+          connectInFlight=true;
+          showRetry(false);
+          setStatus(apiStatusEl,"info",'<span class="spinner" aria-hidden="true"></span>Key received &mdash; finding your provider and fetching its models automatically&hellip;');
+          /* Each key shape in the list belongs to exactly one provider, so
+             the key is only ever sent to its own maker - never tried
+             against another company. */
+          var chain=PROVIDERS.filter(function(p){ return p.match(key); });
+          if(!chain.length){
+            connectInFlight=false;
+            showRetry(true);
+            setStatus(apiStatusEl,"err","We couldn&rsquo;t recognise this key. It works with keys from Groq, OpenAI, Google Gemini, DeepSeek, NVIDIA and more &mdash; and one OpenRouter key opens models from over 100 providers. Check the key is copied in full and paste it again &mdash; it will be checked automatically.");
+            return;
+          }
+          function tryNext(i){
+            if(i>=chain.length){
+              connectInFlight=false;
+              showRetry(true);
+              setStatus(apiStatusEl,"err","We couldn&rsquo;t check that key just now. Check your internet connection, then tap Try again &mdash; or paste the key again and it checks itself.");
+              return;
+            }
+            fetchModelsFor(chain[i], key).then(function(models){
+              if(!models.length) throw new Error("empty");
+              ai.key=key; ai.provider=chain[i]; ai.models=models; ai.connected=true;
+              ai.audioModels=rankAudioModels(models);
+              ai.audioModel=ai.audioModels[0]||"";
+              var chatModels=models.filter(function(m){ return !isNotChat(m); });
+              chatModels.sort(function(a,b){ return scoreChat(b)-scoreChat(a); });
+              ai.chatModels=chatModels;
+              ai.chatModel=chatModels[0]||"";
+              connectInFlight=false;
+              setConnectedUI();
+              setStatus(apiStatusEl,"ok","Connected to "+ai.provider.name+" automatically. Taking you to Step 3&hellip; "+(ai.audioModel? "It will listen with "+prettyModel(ai.audioModel)+" \u2014 you can change the listening model there." : "This provider has no listening model, so transcripts come from captions, with its best model checking the words."));
+              /* Correct key: straight to the next page, no Continue tap. */
+              setTimeout(goToStep3, 650);
+            }).catch(function(err){
+              if(err && /^http (401|403)$/.test(err.message||"")){
+                connectInFlight=false;
+                showRetry(true);
+                setStatus(apiStatusEl,"err",chain[i].name+" read that key and did not accept it. Check the key is copied in full, with no spaces, and that it has not been switched off &mdash; then paste it again and it will be checked automatically.");
+                return;
+              }
+              tryNext(i+1);
+            });
+          }
+          tryNext(0);
+        }
+        /* A pasted key arrives in one piece, so it is checked almost at
+           once (450 ms - just long enough for the paste to land). A typed
+           key gets a longer pause (1100 ms after the last keystroke), so
+           a half-typed key is never sent. Either way, a check only runs
+           when the value looks like a complete key: long enough, no
+           spaces inside, and matching a known provider's shape - and
+           never twice for the same unchanged value. */
+        function scheduleAutoConnect(delay){
+          if(autoTimer) clearTimeout(autoTimer);
+          autoTimer=setTimeout(function(){
+            autoTimer=null;
+            if(ai.connected || connectInFlight) return;
+            var key=($("api-key").value||"").trim();
+            if(!key || key===lastAutoKey) return;
+            if(/\s/.test(key)) return;
+            if(key.length<20) return;
+            if(!PROVIDERS.some(function(p){ return p.match(key); })) return;
+            attemptConnect();
+          }, delay);
+        }
+        $("api-key").addEventListener("paste", function(){ scheduleAutoConnect(450); });
+        $("api-key").addEventListener("input", function(){ showRetry(false); scheduleAutoConnect(1100); });
+        $("api-key").addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); attemptConnect(); } });
+        $("api-connect").addEventListener("click", function(){ lastAutoKey=""; attemptConnect(); });
+        /* Ask the connected model to check the words: fix clear mishearings and
+           spelling, keep the same lines, same order, same language. Returns
+           true when the checked words were applied. Never throws. */
+        function chatOnce(model, promptText){
+          var p=ai.provider, key=ai.key;
+          var headers={ "Content-Type":"application/json" };
+          if(p.type==="gemini"){
+            headers["x-goog-api-key"]=key;
+            return withTimeout(fetch(p.base+"/models/"+encodeURIComponent(model)+":generateContent", {
+              method:"POST", headers:headers,
+              body:JSON.stringify({ contents:[{ parts:[{ text:promptText }] }], generationConfig:{ temperature:0 } })
+            }), 45000).then(jsonOrThrow).then(function(d){
+              var parts=(d.candidates&&d.candidates[0]&&d.candidates[0].content&&d.candidates[0].content.parts)||[];
+              return parts.map(function(x){ return x.text||""; }).join("");
+            });
+          }
+          if(p.type==="anthropic"){
+            headers["x-api-key"]=key; headers["anthropic-version"]="2023-06-01"; headers["anthropic-dangerous-direct-browser-access"]="true";
+            return withTimeout(fetch(p.base+"/messages", {
+              method:"POST", headers:headers,
+              body:JSON.stringify({ model:model, max_tokens:4096, messages:[{ role:"user", content:promptText }] })
+            }), 45000).then(jsonOrThrow).then(function(d){
+              return ((d.content||[])[0]&&d.content[0].text)||"";
+            });
+          }
+          headers["Authorization"]="Bearer "+key;
+          return withTimeout(fetch(p.base+"/chat/completions", {
+            method:"POST", headers:headers,
+            body:JSON.stringify({ model:model, temperature:0, messages:[
+              { role:"system", content:"You correct video transcripts with great care, in any language." },
+              { role:"user", content:promptText }
+            ] })
+          }), 45000).then(jsonOrThrow).then(function(d){
+            return (d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||"";
+          });
+        }
+        /* Call the picked model; if it fails - removed by the provider,
+           decommissioned, or simply erroring - step down the provider's own
+           live list to the next working model and keep using that one, so a
+           dead model never blocks the check. */
+        function aiChat(promptText){
+          var candidates=[];
+          if(ai.chatModel) candidates.push(ai.chatModel);
+          (ai.chatModels||[]).forEach(function(m){ if(m && candidates.indexOf(m)<0) candidates.push(m); });
+          if(!candidates.length) return Promise.reject(new Error("nomodel"));
+          function attempt(i){
+            return chatOnce(candidates[i], promptText).then(function(text){
+              if(!text) throw new Error("empty");
+              if(candidates[i]!==ai.chatModel){
+                /* The word-check model steps down silently in the
+                   background - the Step 3 dropdown is the listening
+                   model only, so it is never touched from here. */
+                ai.chatModel=candidates[i];
+              }
+              return text;
+            }).catch(function(err){
+              if(i+1<candidates.length) return attempt(i+1);
+              throw err;
+            });
+          }
+          return attempt(0);
+        }
+        /* ---------- language helpers ----------
+           langNameFor turns a code (en, hi, zh-Hans) into its display name.
+           guessLangFromScript spots the language family straight from the
+           writing of the words themselves - a cheap, offline cross-check on
+           whatever language was picked or auto-detected. Latin script
+           returns "" because many languages share it. */
+        function langNameFor(code){
+          if(!code) return "";
+          var want=String(code).toLowerCase();
+          for(var i=0;i<LANGUAGES.length;i++){ if(LANGUAGES[i][0].toLowerCase()===want) return LANGUAGES[i][1]; }
+          want=want.split("-")[0];
+          for(var j=0;j<LANGUAGES.length;j++){ if(LANGUAGES[j][0].toLowerCase()===want) return LANGUAGES[j][1]; }
+          return code;
+        }
+        function guessLangFromScript(text){
+          var counts={}, total=0, best="", bestN=0;
+          function bump(k){ counts[k]=(counts[k]||0)+1; total++; if(counts[k]>bestN){ bestN=counts[k]; best=k; } }
+          for(var i=0;i<text.length;i++){
+            var c=text.charCodeAt(i);
+            if(c>=0x0900&&c<=0x097F) bump("hi");
+            else if(c>=0x0980&&c<=0x09FF) bump("bn");
+            else if(c>=0x0A00&&c<=0x0A7F) bump("pa");
+            else if(c>=0x0A80&&c<=0x0AFF) bump("gu");
+            else if(c>=0x0B80&&c<=0x0BFF) bump("ta");
+            else if(c>=0x0C00&&c<=0x0C7F) bump("te");
+            else if(c>=0x0C80&&c<=0x0CFF) bump("kn");
+            else if(c>=0x0D00&&c<=0x0D7F) bump("ml");
+            else if(c>=0x0600&&c<=0x06FF) bump("ar");
+            else if(c>=0x0590&&c<=0x05FF) bump("he");
+            else if(c>=0x0400&&c<=0x04FF) bump("ru");
+            else if(c>=0x0370&&c<=0x03FF) bump("el");
+            else if(c>=0xAC00&&c<=0xD7A3) bump("ko");
+            else if((c>=0x3040&&c<=0x30FF)) bump("ja");
+            else if(c>=0x4E00&&c<=0x9FFF) bump("zh");
+            else if(c>=0x0E00&&c<=0x0E7F) bump("th");
+          }
+          return (best && bestN>=3 && bestN>=total*0.4)? best : "";
+        }
+        /* ---------- the AI word check, done properly ----------
+           Two passes per chunk, never one loose pass over the whole text:
+           pass 1 fixes clear mishearings with strict rules (names checked
+           against the video title, no word may be added or invented, an
+           unclear sung or fast word stays as heard); pass 2 compares the
+           fix against the original and undoes any change that added a
+           word, a name or an idea that was not there. Long transcripts
+           are split into chunks of 30 lines so nothing is skipped or cut
+           short by a reply limit, and a chunk whose fix changes the word
+           count wildly is rejected - the original lines are kept. */
+        function wordCountOf(s){ return String(s||"").split(/\s+/).filter(Boolean).length; }
+        function saneChunk(orig, fixed){
+          if(!fixed || fixed.length!==orig.length) return false;
+          for(var i=0;i<orig.length;i++){
+            var o=wordCountOf(orig[i]), f=wordCountOf(fixed[i]);
+            if(o>0 && (f>o*1.4+3 || f<Math.max(1, Math.floor(o*0.5)))) return false;
+          }
+          return true;
+        }
+        function parseReplyLines(text, n){
+          var out=String(text||"").replace(/```[a-z]*\n?/gi,"").split(/\r?\n/).map(function(l){ return l.trim(); }).filter(Boolean);
+          return out.length===n? out : null;
+        }
+        function polishLines(lines){
+          if(!ai.connected || !ai.chatModel || !lines.length) return Promise.resolve(null);
+          var langCtx=langSelect.value? langNameFor(langSelect.value) : (state.detectedLang||"the video's own language");
+          var titleCtx=state.title? ('The video title is: "'+state.title+'". Use it to spell names of people, places and brands exactly right. ') : "";
+          var CHUNK=30, chunks=[];
+          for(var i=0;i<lines.length;i+=CHUNK) chunks.push(lines.slice(i, i+CHUNK));
+          var result=[], anyFixed=false;
+          function runChunk(idx){
+            if(idx>=chunks.length) return Promise.resolve(anyFixed? result : null);
+            var chunk=chunks[idx];
+            var promptText="Here are lines from a video transcript, one line per line, in "+langCtx+". "+titleCtx+"\n\n"+
+              chunk.join("\n")+
+              "\n\nCheck every word with great care - names, fast lines and sung words most of all:\n"+
+              "- Fix words that are clearly misheard or misspelled, and fix punctuation.\n"+
+              "- Spell names of people, places and brands correctly, using the title when it helps.\n"+
+              "- Never add a word that was not heard. If a sung or fast word is unclear, keep the original word - never guess a new one into its place.\n"+
+              "- Never drop words, never merge or split lines.\n"+
+              "Keep the exact same number of lines, in the same order, in the same language and same writing. Do not translate. Reply with only the corrected lines, no explanation.";
+            return aiChat(promptText).then(function(text){
+              var fixed=parseReplyLines(text, chunk.length);
+              if(!saneChunk(chunk, fixed)){ result=result.concat(chunk); return runChunk(idx+1); }
+              var verify="ORIGINAL lines:\n"+chunk.join("\n")+"\n\nCHECKED lines:\n"+fixed.join("\n")+
+                "\n\nCompare them line by line. The CHECKED lines may fix spelling and clear mishearings, but they must not add any word, name or idea that is not in the ORIGINAL, and must not drop whole words. Where a checked line added or invented anything, restore the original wording for that line. Keep the exact same number of lines, in the same order, in the same language. Reply with only the final lines.";
+              return aiChat(verify).then(function(text2){
+                var finalLines=parseReplyLines(text2, chunk.length);
+                result=result.concat(saneChunk(chunk, finalLines)? finalLines : fixed);
+                anyFixed=true;
+                return runChunk(idx+1);
+              }).catch(function(){
+                result=result.concat(fixed); anyFixed=true;
+                return runChunk(idx+1);
+              });
+            }).catch(function(){
+              result=result.concat(chunk);
+              return runChunk(idx+1);
+            });
+          }
+          return runChunk(0);
+        }
+        function aiPolishEntries(){
+          if(!state.entries.length) return Promise.resolve(false);
+          var lines=state.entries.map(function(e){ return e.text; });
+          return polishLines(lines).then(function(out){
+            if(!out) return false;
+            state.entries.forEach(function(e, i){ e.text=out[i]; });
+            renderEntries();
+            return true;
+          });
+        }
+
+        /* ---------- let the connected provider listen to a sound file ----------
+           Sends the file to the provider's own transcription model (Whisper
+           and friends) and turns its timed segments into the same entries the
+           caption flow produces, so both saved files work as usual. */
+        var audioInput=$("audio-input");
+        $("audio-btn").addEventListener("click", function(){ if(audioInput) audioInput.click(); });
+        if(audioInput) audioInput.addEventListener("change", function(){
+          if(audioInput.files[0]) transcribeAudioFile(audioInput.files[0]);
+          audioInput.value="";
+        });
+        /* The listening panel also takes a dropped file. */
+        var listenPanel=$("audio-hint");
+        if(listenPanel){
+          listenPanel.addEventListener("dragover", function(e){ e.preventDefault(); listenPanel.classList.add("drag"); });
+          listenPanel.addEventListener("dragleave", function(){ listenPanel.classList.remove("drag"); });
+          listenPanel.addEventListener("drop", function(e){
+            e.preventDefault(); listenPanel.classList.remove("drag");
+            if(e.dataTransfer && e.dataTransfer.files[0]) transcribeAudioFile(e.dataTransfer.files[0]);
+          });
+        }
+        /* Check whatever words are in the box - fetched, listened to, or
+           pasted in by hand - with the connected model, fully online. */
+        var polishBtn=$("polish-btn");
+        if(polishBtn) polishBtn.addEventListener("click", function(){
+          if(!ai.connected || !ai.chatModel){
+            setStatus(status2El,"err","Connect a key in Step 2 first - then this button checks the words for you, online.");
+            return;
+          }
+          var lines=currentLines();
+          if(!lines.length){
+            setStatus(status2El,"err","There are no words here yet. Get the words from a video first, or paste them in the box.");
+            return;
+          }
+          polishBtn.disabled=true;
+          startProcessing();
+          setStatus(status2El,"info",'<span class="spinner" aria-hidden="true"></span>'+ai.provider.name+" is checking every word&hellip;");
+          polishLines(lines).then(function(out){
+            if(!out){
+              setStatus(status2El,"warn","The check didn&rsquo;t come back cleanly, so your words were left exactly as they are.");
+              return;
+            }
+            if(state.entries.length && state.entries.length===out.length){
+              state.entries.forEach(function(e, i){ e.text=out[i]; });
+              renderEntries();
+            }else{
+              state.entries=[];
+              transcriptEl.value=out.join("\n");
+              updateStats();
+            }
+            setStatus(status2El,"ok","Checked by "+prettyModel(ai.chatModel)+" from "+ai.provider.name+" - clear mistakes fixed, same lines, same order, same language. Now save both files.");
+          }).finally(function(){ polishBtn.disabled=false; stopProcessing(); });
+        });
+        function transcribeAudioFile(file){
+          if(!ai.connected || !ai.audioModel || ai.provider.type!=="openai"){
+            setStatus(status2El,"err","Connect a key with a listening model first - Groq and OpenAI keys can listen.");
+            return;
+          }
+          /* The providers refuse files over about 25 MB - say so up front,
+             in plain words, instead of sending it and failing quietly. */
+          if(file.size > 25*1024*1024){
+            setStatus(status2El,"err","That file is "+(file.size/1048576).toFixed(1)+" MB - "+ai.provider.name+" only accepts files up to 25 MB. Pick a smaller sound file (an MP3 of the audio is usually well under that).");
+            return;
+          }
+          var safeFileName=String(file.name||"your file").replace(/[<>&"]/g,"");
+          var btn=$("audio-btn"); btn.disabled=true;
+          startProcessing();
+          setStatus(status2El,"info",'<span class="spinner" aria-hidden="true"></span>'+ai.provider.name+" is listening to <b>"+safeFileName+"</b> with "+prettyModel(ai.audioModel)+"&hellip;");
+          /* Listening models take the plain language code, so a written
+             form like zh-Hans or pt-BR is sent as its base language. When
+             the user picked a language it is sent, so the model never has
+             to guess; on Auto the model detects it and reports it back. */
+          var lang=(langSelect.value||"").trim().split("-")[0];
+          /* Try the picked listening model first; if it fails - removed or
+             decommissioned by the provider, or just erroring - step down
+             the provider's own live list to the next working one. */
+          var candidates=(ai.audioModels && ai.audioModels.length)? ai.audioModels.slice() : [ai.audioModel];
+          if(candidates[0]!==ai.audioModel){
+            candidates=candidates.filter(function(m){ return m!==ai.audioModel; });
+            candidates.unshift(ai.audioModel);
+          }
+          function attemptAudio(idx){
+            var form=new FormData();
+            form.append("file", file);
+            form.append("model", candidates[idx]);
+            form.append("response_format", "verbose_json");
+            form.append("temperature", "0");
+            /* The title is the best name hint there is: it carries the
+               people, places and song names the model must get right. */
+            if(state.title) form.append("prompt", state.title+". Transcribe every word exactly as heard - names, fast lines and sung words included. Do not add words that are not sung or spoken.");
+            if(lang) form.append("language", lang);
+            return withTimeout(fetch(ai.provider.base+"/audio/transcriptions", {
+              method:"POST",
+              headers:{ "Authorization":"Bearer "+ai.key },
+              body:form
+            }), 180000).then(jsonOrThrow).then(function(d){
+              ai.audioModel=candidates[idx];
+              return d;
+            }).catch(function(err){
+              if(idx+1<candidates.length) return attemptAudio(idx+1);
+              throw err;
+            });
+          }
+          attemptAudio(0).then(function(d){
+            var entries=[];
+            if(d.segments && d.segments.length){
+              d.segments.forEach(function(s){
+                var txt=String(s.text||"").replace(/\s+/g," ").trim();
+                if(txt) entries.push({ start:+s.start||0, dur:Math.max(0.5,(+s.end||0)-(+s.start||0)), text:txt });
+              });
+            }
+            if(!entries.length && d.text){
+              entries=[{ start:0, dur:2, text:String(d.text).replace(/\s+/g," ").trim() }];
+            }
+            if(!entries.length) throw new Error("empty");
+            state.entries=entries;
+            if(d.language) state.detectedLang=langNameFor(d.language)+(lang?"":" (auto-detected)");
+            renderEntries();
+            function done(checked){
+              setStatus(status2El,"ok", ai.provider.name+" listened and wrote the words down"+
+                (d.language? ". Heard language: "+langNameFor(d.language) : "")+
+                (checked? ". The words were then checked twice - fixed, then verified" : "")+
+                ". Read them above, then save both files.");
+            }
+            if(ai.chatModel){
+              aiPolishEntries().then(function(checked){ done(!!checked); });
+            }else{ done(false); }
+          }).catch(function(err){
+            if(err && /^http (401|403)$/.test(err.message||"")){
+              setStatus(status2El,"err",ai.provider.name+" did not accept that key for listening. Reconnect your key in Step 2, then try the file again.");
+            }else if(err && err.message==="timeout"){
+              setStatus(status2El,"err","Listening took too long and timed out - the file may be long or your connection slow. Try a shorter or smaller file.");
+            }else{
+              setStatus(status2El,"err","That listening didn&rsquo;t work. Check your internet and try again - or get the words from a video link instead.");
+            }
+          }).finally(function(){ btn.disabled=false; stopProcessing(); });
+        }
+
+        /* ---------- transcribe a YouTube LINK through the worker ----------
+           Used only when WORKER_URL is set and a listening key (Groq /
+           OpenAI) is connected. The page sends the link - never a file -
+           to the worker's /api/transcribe_link endpoint as JSON:
+             { url, videoId, provider, base, apiKey, model,
+               language (only when the user picked one), title }
+           The worker fetches the video's sound on the server, sends it
+           to that provider's listening model, and answers with the same
+           shape the listening models return: { text, language,
+           segments: [{ start, end, text }] }. Any failure rejects, and
+           the caller falls back to captions, then the listening panel,
+           then the computer pack. This can take a while on long videos -
+           it is not instant, and the words get the same double check as
+           every other route before they are shown. */
+        function transcribeViaWorker(id, lang){
+          var payload={
+            url:"https://www.youtube.com/watch?v="+id,
+            videoId:id,
+            provider:ai.provider.id,
+            base:ai.provider.base,
+            apiKey:ai.key,
+            model:ai.audioModel
+          };
+          var baseLang=(lang||"").trim().split("-")[0];
+          if(baseLang) payload.language=baseLang;
+          if(state.title) payload.title=state.title;
+          return withTimeout(fetch(WORKER_URL.replace(/\/+$/,"")+"/api/transcribe_link", {
+            method:"POST",
+            headers:{ "Content-Type":"application/json" },
+            body:JSON.stringify(payload)
+          }), 240000).then(jsonOrThrow).then(function(d){
+            var entries=[];
+            var segs=d.segments||d.entries||[];
+            segs.forEach(function(s){
+              var txt=String(s.text||"").replace(/\s+/g," ").trim();
+              if(!txt) return;
+              var st=+s.start||0;
+              var en=(s.end!=null? +s.end : st+(+s.dur||2));
+              entries.push({ start:st, dur:Math.max(0.5, en-st), text:txt });
+            });
+            if(!entries.length && d.text){
+              var whole=String(d.text).replace(/\s+/g," ").trim();
+              if(whole) entries=[{ start:0, dur:2, text:whole }];
+            }
+            if(!entries.length) throw new Error("empty");
+            state.entries=entries;
+            if(d.language) state.detectedLang=langNameFor(d.language)+(lang?"":" (auto-detected)");
+            state.langNote="";
+            renderEntries();
+            function done(checked){
+              setStatus(statusEl,"ok", ai.provider.name+" listened to this video\u2019s sound through your worker and wrote the words down"+
+                (d.language? ". Heard language: "+langNameFor(d.language) : "")+
+                (checked? ". The words were then checked twice - fixed, then verified" : "")+
+                ". Read them on the right, then save both files.");
+            }
+            if(ai.chatModel){
+              return aiPolishEntries().then(function(c){ done(!!c); return true; });
+            }
+            done(false);
+            return true;
+          });
+        }
+
+        /* ---------- caption fetching ---------- */
+        function withTimeout(promise, ms){
+          return Promise.race([promise, new Promise(function(_,rej){ setTimeout(function(){ rej(new Error("timeout")); }, ms); })]);
+        }
+        function fetchText(url){
+          /* Direct from YouTube only - the link the user pasted is never
+             sent through any third-party relay. If YouTube will not hand
+             the words to this page, the friendly message below explains
+             what to do instead. */
+          return withTimeout(fetch(url), 12000).then(function(r){
+            if(!r.ok) throw new Error("http "+r.status);
+            return r.text();
+          }).then(function(t){
+            if(!t || t.length<10) throw new Error("empty");
+            return t;
+          });
+        }
+        function parseTrackList(xmlText){
+          var doc=new DOMParser().parseFromString(xmlText,"text/xml");
+          var nodes=doc.querySelectorAll("track"), out=[];
+          for(var i=0;i<nodes.length;i++){
+            out.push({
+              lang:nodes[i].getAttribute("lang_code")||"",
+              name:nodes[i].getAttribute("lang_original")||nodes[i].getAttribute("lang_translated")||"",
+              kind:nodes[i].getAttribute("kind")||""
+            });
+          }
+          return out;
+        }
+        function parseCaptionXml(xmlText){
+          var doc=new DOMParser().parseFromString(xmlText,"text/xml");
+          var nodes=doc.querySelectorAll("text"), out=[];
+          for(var i=0;i<nodes.length;i++){
+            var txt=(nodes[i].textContent||"").replace(/\s+/g," ").trim();
+            if(!txt) continue;
+            out.push({
+              start:parseFloat(nodes[i].getAttribute("start")||"0"),
+              dur:parseFloat(nodes[i].getAttribute("dur")||"2"),
+              text:txt
+            });
+          }
+          return out;
+        }
+        function pickTrack(tracks, lang, pref){
+          var inLang=tracks.filter(function(t){ return t.lang===lang || t.lang.indexOf(lang+"-")===0 || (lang.indexOf("-")>0 && t.lang===lang.split("-")[0]); });
+          var pool=inLang.length?inLang:tracks;
+          var manual=pool.filter(function(t){ return t.kind!=="asr"; });
+          var auto=pool.filter(function(t){ return t.kind==="asr"; });
+          if(pref==="manual") return manual[0]||null;
+          if(pref==="auto") return auto[0]||null;
+          if(pref==="auto-first") return auto[0]||manual[0]||pool[0]||null;
+          return manual[0]||auto[0]||pool[0]||null;
+        }
+        /* ---------- processing animation & elapsed timer ---------- */
+        var procInterval=null, procStartedAt=0;
+        var procStages=[
+          "Looking for the words on this video\u2026",
+          "Working out the language\u2026",
+          "Reading the words line by line\u2026",
+          "Checking names and fast lines\u2026",
+          "Second check - no word added, none lost\u2026",
+          "Almost there - tidying up the lines\u2026"
+        ];
+        function fmtElapsed(ms){
+          var total=Math.max(0,Math.floor((ms||0)/1000));
+          var m=Math.floor(total/60), s=total%60;
+          return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+        }
+        function startProcessing(){
+          var box=$("processing"); if(!box) return;
+          procStartedAt=Date.now();
+          $("proc-elapsed").textContent="00:00";
+          $("proc-stage").textContent=procStages[0];
+          box.classList.add("show"); box.setAttribute("aria-hidden","false");
+          if(procInterval) clearInterval(procInterval);
+          procInterval=setInterval(function(){
+            var elapsed=Date.now()-procStartedAt;
+            $("proc-elapsed").textContent=fmtElapsed(elapsed);
+            var idx=Math.min(procStages.length-1, Math.floor(elapsed/4000));
+            $("proc-stage").textContent=procStages[idx];
+          },250);
+        }
+        function stopProcessing(){
+          if(procInterval){ clearInterval(procInterval); procInterval=null; }
+          var box=$("processing");
+          if(box){ box.classList.remove("show"); box.setAttribute("aria-hidden","true"); }
+        }
+
+        /* ---------- captions: every route a page can try ----------
+           YouTube retired the unsigned caption list this page used to
+           call - it now answers with an empty page for every video,
+           which is why "Get the transcript" failed even for videos
+           that do have captions, and why the message wrongly blamed
+           the internet. The routes below replace it, tried in order:
+           1. Public Invidious servers FIRST - they serve the same
+              caption tracks as subtitle files and are built to let
+              other pages read them, so this is the route most likely
+              to work from a web page.
+           2. YouTube's own player API - the one the YouTube apps use.
+              It returns the video's real caption tracks, each with a
+              signed link this page is allowed to read.
+           3. The old caption list address, kept as a last try.
+           Honest limit: no route lets a page alone promise captions -
+           YouTube can block any of them, which is why the worker
+           (online helper) route stays the strongest path when set up:
+           it fetches the sound server-side instead of asking YouTube
+           for captions at all.
+           A route that answers "this video has no captions" is
+           believed; a route that cannot be reached is skipped for
+           the next one. Only when every route is blocked does the
+           page say so - plainly, without blaming the connection. */
+        function parseJson3Captions(text){
+          var d=JSON.parse(text), out=[];
+          (d.events||[]).forEach(function(ev){
+            if(!ev.segs) return;
+            var txt=ev.segs.map(function(s){ return s.utf8||""; }).join("").replace(/\s+/g," ").trim();
+            if(!txt) return;
+            out.push({ start:(ev.tStartMs||0)/1000, dur:Math.max(0.5,(ev.dDurationMs||2000)/1000), text:txt });
+          });
+          return out;
+        }
+        function chooseTrack(tracks, lang){
+          /* Auto, done properly: the auto-captions (asr) track is
+             written in the language actually spoken, so its language
+             IS the detection - far surer than taking the first track
+             in the list, which can be a translation. With no asr
+             track, fall back to the script of the video title. A
+             language the user picked always wins over both. */
+          var effLang=lang, autoDetected=false;
+          if(!effLang){
+            var asr=null;
+            tracks.forEach(function(t){ if(t.kind==="asr" && !asr) asr=t; });
+            if(asr){ effLang=asr.lang; autoDetected=true; }
+            else { var g=guessLangFromScript(state.title||""); if(g) effLang=g; }
+          }
+          return { track:pickTrack(tracks, effLang||lang, "manual-first"), effLang:effLang, autoDetected:autoDetected };
+        }
+        function fetchFromTracks(id, lang, tracks, fetchEntries){
+          state.tracks=tracks;
+          var c=chooseTrack(tracks, lang);
+          if(!c.track) throw new Error("notrack");
+          state.detectedLang=langNameFor(c.track.lang)+(c.autoDetected?" (auto-detected)":"");
+          state.langNote="";
+          var scriptLang=guessLangFromScript(state.title||"");
+          if(scriptLang && c.effLang && scriptLang!==String(c.effLang).split("-")[0]){
+            state.langNote=" The title looks like "+langNameFor(scriptLang)+" - if the words read wrong, pick that language above and try again.";
+          }
+          return fetchEntries(c.track).then(function(entries){
+            if(!entries || !entries.length) throw new Error("empty");
+            return { entries:entries, track:c.track };
+          });
+        }
+        function captionsViaPlayer(id, lang){
+          var body={ context:{ client:{ clientName:"ANDROID", clientVersion:"19.09.37", androidSdkVersion:30, hl:"en", gl:"US" } }, videoId:id, contentCheckOk:true, racyCheckOk:true };
+          return withTimeout(fetch("https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8", {
+            method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(body)
+          }), 15000).then(function(r){ if(!r.ok) throw new Error("http "+r.status); return r.json(); }).then(function(d){
+            var det=d.videoDetails||{};
+            if(det.title) applyMeta({ title:det.title, author:det.author||"", lengthSec:+det.lengthSeconds||0, views:(det.viewCount!=null? det.viewCount : null) });
+            var list=(((d.captions||{}).playerCaptionsTracklistRenderer)||{}).captionTracks||[];
+            if(!list.length) throw new Error("notracks");
+            var tracks=list.map(function(t){ return { lang:t.languageCode||"", name:(t.name&&t.name.simpleText)||"", kind:t.kind||"", baseUrl:t.baseUrl||"" }; });
+            return fetchFromTracks(id, lang, tracks, function(track){
+              return fetchText(track.baseUrl+"&fmt=json3").then(parseJson3Captions);
+            });
+          });
+        }
+        function captionsViaInvidious(id, lang){
+          var chain=Promise.reject(new Error("start"));
+          INVIDIOUS_HOSTS.forEach(function(base){
+            chain=chain.catch(function(prev){
+              if(prev && prev.message==="notracks") throw prev;
+              return withTimeout(fetch(base+"/api/v1/captions/"+id), 12000)
+                .then(function(r){ if(!r.ok) throw new Error("http "+r.status); return r.json(); })
+                .then(function(d){
+                  var caps=(d&&d.captions)||[];
+                  if(!caps.length) throw new Error("notracks");
+                  var tracks=caps.map(function(c){ return { lang:c.languageCode||"", name:c.label||"", kind:/auto/i.test(c.label||"")? "asr" : "", url:(String(c.url||"").indexOf("http")===0? c.url : base+(c.url||"")) }; });
+                  return fetchFromTracks(id, lang, tracks, function(track){
+                    return withTimeout(fetch(track.url), 12000).then(function(r){ if(!r.ok) throw new Error("http "+r.status); return r.text(); }).then(parseSubtitleText);
+                  });
+                });
+            });
+          });
+          return chain;
+        }
+        function captionsViaLegacy(id, lang){
+          return fetchText("https://www.youtube.com/api/timedtext?v="+id+"&type=list").then(function(xml){
+            var tracks=parseTrackList(xml);
+            if(!tracks.length) throw new Error("notracks");
+            return fetchFromTracks(id, lang, tracks, function(track){
+              var capUrl="https://www.youtube.com/api/timedtext?v="+id+"&lang="+encodeURIComponent(track.lang)+(track.kind==="asr"?"&kind=asr":"");
+              return fetchText(capUrl).then(parseCaptionXml);
+            });
+          });
+        }
+        function getCaptions(id, lang){
+          var sawNoTracks=false;
+          return captionsViaInvidious(id, lang).catch(function(e){
+            if(e && e.message==="notracks") sawNoTracks=true;
+            return captionsViaPlayer(id, lang);
+          }).catch(function(e){
+            if(e && e.message==="notracks") sawNoTracks=true;
+            return captionsViaLegacy(id, lang);
+          }).catch(function(e){
+            if(sawNoTracks || (e && e.message==="notracks")) throw new Error("notracks");
+            throw new Error("unreachable");
+          });
+        }
+
+        $("fetch-btn").addEventListener("click", function(){
+          var id=state.videoId||loadVideo();
+          if(!id) return;
+          var btn=$("fetch-btn");
+          var lang=(langSelect.value||"").trim().toLowerCase();
+          var pref="manual-first";
+          btn.disabled=true;
+          startProcessing();
+          /* Route order: with a worker set up AND a listening key
+             connected, the LINK goes to the worker first - it fetches
+             the sound server-side, so even a video with no captions can
+             be transcribed from the link alone. If the worker fails or
+             is not set up: captions, then the listening panel, then the
+             computer pack. */
+          if(WORKER_URL && ai.connected && ai.audioModel && ai.provider && ai.provider.type==="openai"){
+            setStatus(statusEl,"info",'<span class="spinner" aria-hidden="true"></span>Your worker is fetching the sound and '+ai.provider.name+' is listening\u2026 this can take a little while on long videos.');
+            transcribeViaWorker(id, lang).then(function(){
+              btn.disabled=false; stopProcessing();
+            }).catch(function(){
+              setStatus(statusEl,"info",'<span class="spinner" aria-hidden="true"></span>The worker couldn&rsquo;t get that video&rsquo;s sound - trying its captions instead\u2026');
+              runCaptions();
+            });
+            return;
+          }
+          runCaptions();
+          function runCaptions(){
+          setStatus(statusEl,"info",'<span class="spinner" aria-hidden="true"></span>Looking for the words\u2026');
+          getCaptions(id, lang).then(function(res){
+            state.entries=res.entries;
+            renderEntries();
+            /* Cross-check: the script of the words themselves should match
+               the track language. If it clearly does not, say so and tell
+               the user which language the words look like. */
+            var wordsScript=guessLangFromScript(res.entries.slice(0,10).map(function(e){ return e.text; }).join(" "));
+            if(wordsScript && wordsScript!==String(res.track.lang).split("-")[0]){
+              state.langNote=" The words themselves look like "+langNameFor(wordsScript)+" - if they read wrong, pick that language above and try again.";
+            }
+            var isAuto=res.track.kind==="asr";
+            function finish(checked){
+              var secs=Math.max(1, Math.round((Date.now()-procStartedAt)/1000));
+              setStatus(statusEl,"ok",
+                "Done - that took "+secs+" second"+(secs===1?"":"s")+". "+
+                (state.detectedLang? "Language: "+state.detectedLang+". " : "")+
+                (checked? "Your connected helper checked every word twice - fixed, then verified. " : "")+
+                (isAuto?"A computer wrote these words, so a few may still be wrong.":
+                        "These are the words from the video"+(checked?"":", just as the video&rsquo;s maker wrote them")+".")+
+                " You can read them below, copy them, or save them."+(state.langNote||""));
+            }
+            if(ai.connected && ai.chatModel){
+              setStatus(statusEl,"info",'<span class="spinner" aria-hidden="true"></span>Your connected helper is checking every word&hellip;');
+              return aiPolishEntries().then(function(done){ finish(!!done); });
+            }
+            finish(false);
+          }).catch(function(err){
+            var lp=$("audio-hint");
+            if(lp && lp.style.display!=="none"){ lp.classList.add("drag"); setTimeout(function(){ lp.classList.remove("drag"); }, 7000); }
+            if(err&&err.message==="notracks"){
+              setStatus(statusEl,"warn","This video has no captions at all - that was checked properly, through every route. "+(ai.connected&&ai.audioModel? "Use the listening panel on the right: pick the video&rsquo;s sound file and "+ai.provider.name+" will write down the words it hears." : "The computer pack (top-right info button) can fetch the sound and write the words on your PC."));
+            }else{
+              setStatus(statusEl,"warn","YouTube wouldn&rsquo;t hand this video&rsquo;s captions to a web page through any route - that is YouTube&rsquo;s block, not your internet. "+(ai.connected&&ai.audioModel? "Use the listening panel on the right: pick the video&rsquo;s sound file and "+ai.provider.name+" will write down the words it hears." : "With a Groq or OpenAI key connected, the listening panel on the right can write the words from a sound file - or the computer pack (top-right info button) can fetch the sound itself."));
+            }
+            transcriptEl.focus();
+          }).finally(function(){ btn.disabled=false; stopProcessing(); });
+          }
+        });
+
+        /* ---------- transcript state & rendering ---------- */
+        function fmtSec(sec){
+          sec=Math.max(0, Math.round(sec||0));
+          var h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s=sec%60;
+          function p(n){ return String(n).padStart(2,"0"); }
+          return h>0? (p(h)+":"+p(m)+":"+p(s)) : (p(m)+":"+p(s));
+        }
+        function renderEntries(){
+          transcriptEl.value=state.entries.map(function(e){ return e.text; }).join("\n");
+          updateStats();
+        }
+        function currentLines(){
+          return transcriptEl.value.split(/\r?\n/).map(function(l){ return l.trim(); }).filter(function(l){ return l.length; });
+        }
+        function updateStats(){ /* the words area speaks for itself - nothing extra to show */ }
+        transcriptEl.addEventListener("input", function(){
+          if(state.entries.length && transcriptEl.value.trim()==="") state.entries=[];
+          updateStats();
+        });
+
+        /* ---------- adding words from a file ---------- */
+        var fileInput=$("file-input");
+        $("file-btn").addEventListener("click", function(){ fileInput.click(); });
+        fileInput.addEventListener("change", function(){ if(fileInput.files[0]) readCaptionFile(fileInput.files[0]); fileInput.value=""; });
+        function readCaptionFile(file){
+          var reader=new FileReader();
+          reader.onload=function(){
+            var entries=parseSubtitleText(String(reader.result||""));
+            if(entries.length){
+              state.entries=entries; renderEntries();
+              setStatus(status2El,"ok","Added the words from your file. You can save them below.");
+            }else{
+              state.entries=[];
+              transcriptEl.value=String(reader.result||"");
+              updateStats();
+              setStatus(status2El,"ok","Added your file. You can save it below.");
+            }
+          };
+          reader.onerror=function(){ setStatus(status2El,"err","That file couldn&rsquo;t be opened. Try another one."); };
+          reader.readAsText(file);
+        }
+        function parseTimeToken(tok){
+          tok=tok.trim().replace(",",".");
+          var parts=tok.split(":");
+          if(parts.length===3) return (+parts[0])*3600+(+parts[1])*60+(+parts[2]);
+          if(parts.length===2) return (+parts[0])*60+(+parts[1]);
+          return parseFloat(tok)||0;
+        }
+        function parseSubtitleText(text){
+          var entries=[], blocks=text.replace(/\r/g,"").split(/\n\s*\n/), i, lines, timeLine, start, end, body;
+          for(i=0;i<blocks.length;i++){
+            lines=blocks[i].split("\n").map(function(l){ return l.trim(); }).filter(Boolean);
+            var ti=lines.findIndex(function(l){ return l.indexOf("-->")>0; });
+            if(ti<0) continue;
+            timeLine=lines[ti].split("-->");
+            start=parseTimeToken(timeLine[0]); end=parseTimeToken(timeLine[1].trim().split(/\s+/)[0]);
+            body=lines.slice(ti+1).join(" ").replace(/<[^>]+>/g,"").replace(/\s+/g," ").trim();
+            if(body) entries.push({ start:start, dur:Math.max(0.5,end-start), text:body });
+          }
+          return entries;
+        }
+
+        /* ---------- tidy the words (sensible defaults, nothing to choose) ---------- */
+        function stripLabels(text){
+          return text.replace(/\[(music|applause|laughter|cheering|singing|instrumental)[^\]]*\]/gi,"").replace(/\s+/g," ").trim();
+        }
+        function cleanedLines(){
+          var lines;
+          if(state.entries.length && transcriptEl.value===state.entries.map(function(e){ return e.text; }).join("\n")){
+            lines=state.entries.map(function(e){ return e.text; });
+          }else{
+            lines=currentLines().map(function(l){
+              return l.replace(/^\[?\d{1,2}:\d{2}(:\d{2})?\]?\s+/, "");
+            });
+          }
+          lines=lines.map(stripLabels).filter(Boolean);
+          var out=[];
+          lines.forEach(function(l){ if(out[out.length-1]!==l) out.push(l); });
+          return out;
+        }
+
+        /* ---------- group the words second by second ---------- */
+        function secondBuckets(){
+          var buckets=[], bySec={};
+          function addWord(sec, word){
+            var b=bySec[sec];
+            if(!b){ b={sec:sec, words:[]}; bySec[sec]=b; buckets.push(b); }
+            b.words.push(word);
+          }
+          if(state.entries.length){
+            state.entries.forEach(function(e){
+              var words=stripLabels(e.text).split(/\s+/).filter(Boolean);
+              var dur=e.dur||2;
+              words.forEach(function(w, idx){
+                var t=e.start+(words.length>1? dur*idx/words.length : 0);
+                addWord(Math.floor(t), w);
+              });
+            });
+          }else{
+            cleanedLines().forEach(function(line, i){
+              line.split(/\s+/).filter(Boolean).forEach(function(w){ addWord(i, w); });
+            });
+          }
+          buckets.sort(function(a,b){ return a.sec-b.sec; });
+          return buckets.filter(function(b, idx){
+            return idx===0 || buckets[idx-1].words.join(" ")!==b.words.join(" ");
+          });
+        }
+
+        /* ---------- write the sounds in English letters ---------- */
+        var INDIC_BASES=[0x0900,0x0980,0x0A00,0x0A80,0x0B00,0x0B80,0x0C00,0x0C80,0x0D00];
+        var INDIC_VOWELS={"5":"a","6":"aa","7":"i","8":"ee","9":"u","10":"oo","11":"ri","15":"e","16":"ai","19":"o","20":"au"};
+        var INDIC_MATRAS={"3e":"aa","3f":"i","40":"ee","41":"u","42":"oo","43":"ri","47":"e","48":"ai","4b":"o","4c":"au"};
+        var INDIC_CONS={"15":"k","16":"kh","17":"g","18":"gh","19":"ng","1a":"ch","1b":"chh","1c":"j","1d":"jh","1e":"ny","1f":"t","20":"th","21":"d","22":"dh","23":"n","24":"t","25":"th","26":"d","27":"dh","28":"n","29":"n","2a":"p","2b":"ph","2c":"b","2d":"bh","2e":"m","2f":"y","30":"r","31":"r","32":"l","33":"l","34":"l","35":"v","36":"sh","37":"sh","38":"s","39":"h","58":"k","59":"kh","5a":"g","5b":"z","5c":"d","5d":"dh","5e":"f","5f":"y"};
+        var INDIC_NUKTA={"15":"k","16":"kh","17":"g","1c":"z","21":"d","22":"dh","2b":"f"};
+        function indicBase(code){
+          for(var i=0;i<INDIC_BASES.length;i++){ if(code>=INDIC_BASES[i] && code<INDIC_BASES[i]+0x80) return INDIC_BASES[i]; }
+          return 0;
+        }
+        function indicChar(text, i, base){
+          var off=text.charCodeAt(i)-base, key=off.toString(16);
+          if(INDIC_CONS[key]){
+            var r=INDIC_CONS[key]; i++;
+            if(i<text.length && text.charCodeAt(i)-base===0x3C){ if(INDIC_NUKTA[key]) r=INDIC_NUKTA[key]; i++; }
+            var noff=i<text.length? text.charCodeAt(i)-base : -1, nkey=noff.toString(16);
+            if(noff===0x4D){ return { out:r, next:i+1 }; }
+            if(INDIC_MATRAS[nkey]!==undefined){ return { out:r+INDIC_MATRAS[nkey], next:i+1 }; }
+            return { out:r+"a", next:i };
+          }
+          if(INDIC_VOWELS[off]!==undefined) return { out:INDIC_VOWELS[off], next:i+1 };
+          if(off===0x01||off===0x02) return { out:"n", next:i+1 };
+          if(off===0x03) return { out:"h", next:i+1 };
+          if(off>=0x66&&off<=0x6F) return { out:String(off-0x66), next:i+1 };
+          return { out:"", next:i+1 };
+        }
+        var CYR={"а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"yo","ж":"zh","з":"z","и":"i","й":"y","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r","с":"s","т":"t","у":"u","ф":"f","х":"kh","ц":"ts","ч":"ch","ш":"sh","щ":"shch","ъ":"","ы":"y","ь":"","э":"e","ю":"yu","я":"ya"};
+        var GRK={"α":"a","β":"v","γ":"g","δ":"d","ε":"e","ζ":"z","η":"i","θ":"th","ι":"i","κ":"k","λ":"l","μ":"m","ν":"n","ξ":"x","ο":"o","π":"p","ρ":"r","σ":"s","ς":"s","τ":"t","υ":"y","φ":"ph","χ":"kh","ψ":"ps","ω":"o","ά":"a","έ":"e","ή":"i","ί":"i","ό":"o","ύ":"y","ώ":"o","ϊ":"i","ϋ":"y"};
+        var ARB={"ا":"a","ب":"b","ت":"t","ث":"th","ج":"j","ح":"h","خ":"kh","د":"d","ذ":"dh","ر":"r","ز":"z","س":"s","ش":"sh","ص":"s","ض":"d","ط":"t","ظ":"z","ع":"'","غ":"gh","ف":"f","ق":"q","ك":"k","ل":"l","م":"m","ن":"n","ه":"h","و":"w","ي":"y","ة":"a","ى":"a","أ":"a","إ":"i","آ":"aa","ؤ":"w","ئ":"y","ء":"'","َ":"a","ُ":"u","ِ":"i","ً":"","ٌ":"","ٍ":"","ّ":"","ْ":""};
+        var HEB={"א":"'","ב":"b","ג":"g","ד":"d","ה":"h","ו":"v","ז":"z","ח":"ch","ט":"t","י":"y","כ":"k","ך":"kh","ל":"l","מ":"m","ם":"m","נ":"n","ן":"n","ס":"s","ע":"'","פ":"p","ף":"f","צ":"ts","ץ":"ts","ק":"k","ר":"r","ש":"sh","ת":"t"};
+        var KANA_SRC="あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ";
+        var KANA_ROM=["a","i","u","e","o","ka","ki","ku","ke","ko","sa","shi","su","se","so","ta","chi","tsu","te","to","na","ni","nu","ne","no","ha","hi","fu","he","ho","ma","mi","mu","me","mo","ya","yu","yo","ra","ri","ru","re","ro","wa","wo","n","ga","gi","gu","ge","go","za","ji","zu","ze","zo","da","ji","zu","de","do","ba","bi","bu","be","bo","pa","pi","pu","pe","po"];
+        var KANA={}; KANA_SRC.split("").forEach(function(c, i){ KANA[c]=KANA_ROM[i]; });
+        var KANA_DIGI={"ki":"ky","shi":"sh","chi":"ch","ni":"ny","hi":"hy","mi":"my","ri":"ry","gi":"gy","ji":"j","bi":"by","pi":"py"};
+        function kanaOf(ch){
+          var code=ch.charCodeAt(0);
+          if(code>=0x30A1&&code<=0x30F6) ch=String.fromCharCode(code-0x60);
+          return ch;
+        }
+        function kanaAt(text, i){
+          var ch=kanaOf(text[i]);
+          if(ch==="っ"){
+            var nxt=i+1<text.length? KANA[kanaOf(text[i+1])] : null;
+            return { out:(nxt&&/^[bcdfghjkprstz]/.test(nxt)? nxt.charAt(0) : ""), next:i+1 };
+          }
+          var rom=KANA[ch];
+          if(!rom) return { out:text[i], next:i+1 };
+          if(i+1<text.length){
+            var small=kanaOf(text[i+1]);
+            if((small==="ゃ"||small==="ゅ"||small==="ょ") && KANA_DIGI[rom]){
+              return { out:KANA_DIGI[rom]+(small==="ゃ"?"a":small==="ゅ"?"u":"o"), next:i+2 };
+            }
+          }
+          return { out:rom, next:i+1 };
+        }
+        var HG_I=["g","kk","n","d","tt","r","m","b","pp","s","ss","","j","jj","ch","k","t","p","h"];
+        var HG_M=["a","ae","ya","yae","eo","e","yeo","ye","o","wa","wae","oe","yo","u","wo","we","wi","yu","eu","ui","i"];
+        var HG_F=["","k","k","k","n","n","nh","t","l","l","l","l","l","l","l","l","m","p","p","s","s","ng","j","ch","k","t","p","h"];
+        function hangul(ch){
+          var s=ch.charCodeAt(0)-0xAC00;
+          return HG_I[Math.floor(s/588)]+HG_M[Math.floor((s%588)/28)]+HG_F[s%28];
+        }
+        var LATX={"ñ":"ny","Ñ":"Ny","ß":"ss","æ":"ae","Æ":"Ae","œ":"oe","ø":"o","Ø":"O","đ":"d","ł":"l","þ":"th","ð":"d","ş":"sh","ğ":"g","ı":"i","ç":"ch"};
+        function capLike(orig, rom){
+          return (orig!==orig.toLowerCase() && rom)? rom.charAt(0).toUpperCase()+rom.slice(1) : rom;
+        }
+        function romanize(text){
+          var out="", i=0;
+          while(i<text.length){
+            var ch=text[i], code=text.charCodeAt(i), base=indicBase(code);
+            if(base){ var ic=indicChar(text, i, base); out+=ic.out; i=ic.next; continue; }
+            if(code>=0xAC00&&code<=0xD7A3){ out+=hangul(ch); i++; continue; }
+            if(ch==="ー"){ var v=out.match(/[aeiou](?=[^aeiou]*$)/); out+=v? v[0] : ""; i++; continue; }
+            if(code>=0x3040&&code<=0x30FF){ var ka=kanaAt(text, i); out+=ka.out; i=ka.next; continue; }
+            var low=ch.toLowerCase();
+            if(CYR[low]!==undefined){ out+=capLike(ch, CYR[low]); i++; continue; }
+            if(GRK[low]!==undefined){ out+=capLike(ch, GRK[low]); i++; continue; }
+            if(ARB[ch]!==undefined){ out+=ARB[ch]; i++; continue; }
+            if(HEB[ch]!==undefined){ out+=HEB[ch]; i++; continue; }
+            if(LATX[ch]!==undefined){ out+=LATX[ch]; i++; continue; }
+            if(code>=0xC0&&code<=0x24F){
+              var dec=ch.normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+              out+=(dec&&dec!==ch)? dec : ch; i++; continue;
+            }
+            if(code>=0x300&&code<=0x36F){ i++; continue; }
+            out+=ch; i++;
+          }
+          return out;
+        }
+
+        /* ---------- build the two files ---------- */
+        function fileHeader(){
+          return (state.title? state.title+"\n":"")+(state.videoId? "https://www.youtube.com/watch?v="+state.videoId+"\n":"")+"\n";
+        }
+        function buildTimedFile(useEnglishLetters){
+          var lines=secondBuckets().map(function(b){
+            var words=b.words.join(" ");
+            if(useEnglishLetters) words=romanize(words).replace(/\s+/g," ").trim();
+            return "["+fmtSec(b.sec)+"] "+words;
+          });
+          return fileHeader()+lines.join("\n")+"\n";
+        }
+        function buildPlainText(){
+          return fileHeader()+cleanedLines().join("\n")+"\n";
+        }
+        function download(name, text, mime){
+          var blob=new Blob([text], {type:(mime||"text/plain")+";charset=utf-8"});
+          var a=document.createElement("a");
+          a.href=URL.createObjectURL(blob); a.download=name;
+          document.body.appendChild(a); a.click();
+          setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 400);
+        }
+        function needText(){
+          if(!transcriptEl.value.trim()){
+            setStatus(status2El,"err","There are no words here yet. Get the words from a video first, or paste them in the box.");
+            return false;
+          }
+          clearStatus(status2El); return true;
+        }
+        $("dl-both").addEventListener("click", function(){
+          if(!needText()) return;
+          download(safeName()+" - original words.txt", buildTimedFile(false));
+          setTimeout(function(){ download(safeName()+" - english letters.txt", buildTimedFile(true)); }, 450);
+          setStatus(status2El,"ok","Saved both files - one in the video&rsquo;s own writing, and one in English letters.");
+        });
+        $("copy-btn").addEventListener("click", function(){
+          if(!needText()) return;
+          var text=buildPlainText();
+          function done(){ setStatus(status2El,"ok","Copied - you can paste the words anywhere."); }
+          if(navigator.clipboard&&navigator.clipboard.writeText){
+            navigator.clipboard.writeText(text).then(done).catch(function(){ fallbackCopy(text); done(); });
+          }else{ fallbackCopy(text); done(); }
+        });
+        function fallbackCopy(text){
+          transcriptEl.value=text; transcriptEl.select();
+          try{ document.execCommand("copy"); }catch(e){}
+        }
+        $("clear-btn").addEventListener("click", function(){
+          transcriptEl.value=""; state.entries=[]; updateStats(); clearStatus(status2El);
+        });
+
+        /* ---------- the pack to take away (page + start file + computer helper) ---------- */
+        function sourceText(id){ return $(id).textContent.replace(/^\n+/,""); }
+        function standaloneHtml(){
+          var clone=document.documentElement.cloneNode(true);
+          var q=function(sel){ return clone.querySelector(sel); };
+          var bg=q("#bg-stage"); if(bg){ bg.innerHTML=""; }
+          var fb2=q("#file-banner"); if(fb2){ fb2.classList.remove("show"); }
+          var st=q("#status"); if(st){ st.innerHTML=""; st.className="status"; }
+          var pr=q("#processing"); if(pr){ pr.classList.remove("show"); pr.setAttribute("aria-hidden","true"); }
+          var pel=q("#proc-elapsed"); if(pel){ pel.textContent="00:00"; }
+          var st2=q("#status2"); if(st2){ st2.innerHTML=""; st2.className="status"; }
+          var st3=q("#status3"); if(st3){ st3.innerHTML=""; st3.className="status"; }
+          var ta=q("#transcript"); if(ta){ ta.textContent=""; }
+          var vb=q("#video-box"); if(vb){ vb.classList.remove("show"); }
+          var pe=q("#preview-empty"); if(pe){ pe.style.display=""; }
+          var tw=q("#thumb-wrap");
+          if(tw){ tw.classList.remove("playing"); tw.innerHTML='<img id="thumb-img" alt="Video thumbnail" /><button class="play-btn" id="play-btn" type="button" aria-label="Play video"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button>'; }
+          var vm2=q("#video-box .video-meta"); if(vm2){ vm2.style.display=""; }
+          var vt=q("#v-title"); if(vt){ vt.textContent=""; }
+          var va=q("#v-author"); if(va){ va.textContent=""; }
+          var vf2=q("#v-facts"); if(vf2){ vf2.textContent=""; }
+          var wl=q("#watch-link"); if(wl){ wl.style.display="none"; }
+          var ui=q("#url-input"); if(ui){ ui.removeAttribute("value"); }
+          var ak=q("#api-key"); if(ak){ ak.removeAttribute("value"); }
+          var acb=q("#api-connect"); if(acb){ acb.style.display="none"; }
+          var wu=q("#worker-url"); if(wu){ wu.removeAttribute("value"); }
+          var ws=q("#worker-status"); if(ws){ ws.innerHTML=""; ws.className="status"; }
+          var as=q("#api-status"); if(as){ as.innerHTML=""; as.className="status"; }
+          var ac=q("#api-connected"); if(ac){ ac.classList.remove("show"); }
+          var ad=q("#api-dot"); if(ad){ ad.classList.remove("on"); }
+          var ar=q("#api-row"); if(ar){ ar.style.display=""; }
+          var ab=q("#api-badge"); if(ab){ ab.textContent="Optional"; }
+          var ms=q("#model-select"); if(ms){ ms.innerHTML=""; }
+          var pb=q("#polish-btn"); if(pb){ pb.style.display="none"; }
+          var ah=q("#audio-hint"); if(ah){ ah.style.display="none"; ah.classList.remove("drag"); }
+          clone.querySelectorAll(".screen").forEach(function(s){ s.classList.remove("active"); });
+          var s1=q("#screen-1"); if(s1){ s1.classList.add("active"); }
+          var im=q("#info-modal"); if(im){ im.classList.remove("open"); }
+          var c3=q("#to-step3"); if(c3){ c3.disabled=true; }
+          var w2s=q("#way2-strip"); if(w2s){ w2s.style.display="none"; }
+          return "<!doctype html>\n"+clone.outerHTML;
+        }
+        var crcTable=null;
+        function crc32(bytes){
+          if(!crcTable){
+            crcTable=[];
+            for(var n=0;n<256;n++){
+              var c=n;
+              for(var k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);
+              crcTable[n]=c>>>0;
+            }
+          }
+          var crc=0xFFFFFFFF;
+          for(var i=0;i<bytes.length;i++) crc=crcTable[(crc^bytes[i])&0xFF]^(crc>>>8);
+          return (crc^0xFFFFFFFF)>>>0;
+        }
+        function buildZip(files){
+          var enc=new TextEncoder();
+          var chunks=[], central=[], offset=0;
+          var now=new Date();
+          var dosTime=((now.getHours()<<11)|(now.getMinutes()<<5)|(now.getSeconds()>>1))&0xFFFF;
+          var dosDate=(((now.getFullYear()-1980)<<9)|((now.getMonth()+1)<<5)|now.getDate())&0xFFFF;
+          function u16(v){ return [v&0xFF,(v>>8)&0xFF]; }
+          function u32(v){ return [v&0xFF,(v>>8)&0xFF,(v>>16)&0xFF,(v>>24)&0xFF]; }
+          files.forEach(function(f){
+            var nameBytes=enc.encode(f.name);
+            var data=typeof f.data==="string"?enc.encode(f.data):f.data;
+            var crc=crc32(data);
+            var local=[].concat(u32(0x04034b50),u16(20),u16(0x0800),u16(0),u16(dosTime),u16(dosDate),u32(crc),u32(data.length),u32(data.length),u16(nameBytes.length),u16(0));
+            chunks.push(new Uint8Array(local), nameBytes, data);
+            central.push({ nameBytes:nameBytes, crc:crc, size:data.length, offset:offset, dosTime:dosTime, dosDate:dosDate });
+            offset+=local.length+nameBytes.length+data.length;
+          });
+          var cdStart=offset, cdSize=0;
+          central.forEach(function(c){
+            var rec=[].concat(u32(0x02014b50),u16(20),u16(20),u16(0x0800),u16(0),u16(c.dosTime),u16(c.dosDate),u32(c.crc),u32(c.size),u32(c.size),u16(c.nameBytes.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(c.offset));
+            chunks.push(new Uint8Array(rec), c.nameBytes);
+            cdSize+=rec.length+c.nameBytes.length;
+          });
+          var end=[].concat(u32(0x06054b50),u16(0),u16(0),u16(central.length),u16(central.length),u32(cdSize),u32(cdStart),u16(0));
+          chunks.push(new Uint8Array(end));
+          return new Blob(chunks, {type:"application/zip"});
+        }
+        $("dl-zip").addEventListener("click", function(){
+          var btn=$("dl-zip"); btn.disabled=true;
+          try{
+            var zip=buildZip([
+              { name:"Open_Transcriber.bat", data:sourceText("src-open-bat") },
+              { name:"start_html.bat", data:sourceText("src-start-html-bat") },
+              { name:"Transcript.html", data:standaloneHtml() },
+              { name:"index.html", data:standaloneHtml() },
+              { name:"README.md", data:sourceText("src-readme-md") },
+              { name:"run_transcript_v2.bat", data:sourceText("src-bat") },
+              { name:"yt_transcript_v2.py", data:sourceText("src-py") },
+              { name:"README.txt", data:sourceText("src-readme") }
+            ]);
+            var a=document.createElement("a");
+            a.href=URL.createObjectURL(zip); a.download="youtube-transcribe-downloader.zip";
+            document.body.appendChild(a); a.click();
+            setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 400);
+            setStatus($("status3"),"ok","Saved. Open the folder and double-click the start file inside - this page opens, ready to use. The same folder (README.md + index.html included) can be pushed to GitHub and published with GitHub Pages for the fully online way.");
+          }catch(e){
+            setStatus($("status3"),"err","That didn&rsquo;t work just now. Please try again.");
+          }
+          btn.disabled=false;
+        });
+
+        refreshRouteNote();
+        updateStats();
+      })();
+    </script>
+
+    <script>
+      (function(){
+        "use strict";
+        var $=function(id){ return document.getElementById(id); };
+        var way="way1";
+        /* Opened as a local file? Show the Step 1 banner: no key can
+           connect from a double-clicked file, and the banner points to
+           the proper way in through the local server address. */
+        if(window.location.protocol==="file:"){
+          var fb=$("file-banner"); if(fb) fb.classList.add("show");
+        }
+        /* Drifting video-card background: four rows of curved YouTube-style
+           cards, alternate rows drifting opposite ways, looping forever.
+           Pure CSS shapes (no downloads), faded and blurred behind the app. */
+        (function buildBg(){
+          var stage=$("bg-stage"); if(!stage) return;
+          var themes=[
+            "linear-gradient(135deg,#f857a6,#ff5858)","linear-gradient(135deg,#2193b0,#6dd5ed)",
+            "linear-gradient(135deg,#11998e,#38ef7d)","linear-gradient(135deg,#4e54c8,#8f94fb)",
+            "linear-gradient(135deg,#f7971e,#ffd200)","linear-gradient(135deg,#8e2de2,#4a00e0)",
+            "linear-gradient(135deg,#0f2027,#2c5364)","linear-gradient(135deg,#fc4a1a,#f7b733)"
+          ];
+          var durs=["12:48","03:27","08:15","21:03","05:52","17:39","09:21","31:07","06:44","14:26","02:58","19:12"];
+          var playSvg='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+          function card(i){
+            var el=document.createElement("div");
+            el.className="vcard";
+            var g=themes[i%themes.length];
+            el.innerHTML='<div class="vthumb" style="background:'+g+'"><span class="play">'+playSvg+'</span><span class="dur">'+durs[i%durs.length]+'</span></div>'+
+              '<div class="vmeta"><span class="vava" style="background:'+g+'"></span><span class="vlines">'+
+              '<span class="vline" style="display:block;width:'+(62+((i*13)%34))+'%"></span>'+
+              '<span class="vline" style="display:block;width:'+(38+((i*7)%26))+'%;margin-top:7px"></span></span></div>';
+            return el;
+          }
+          for(var r=0;r<4;r++){
+            var row=document.createElement("div");
+            row.className="bg-row"+(r%2?" rev":"")+(r===2?" slow":"");
+            for(var gIdx=0;gIdx<2;gIdx++){
+              var grp=document.createElement("div");
+              grp.className="bg-group";
+              for(var c=0;c<6;c++) grp.appendChild(card(r*6+c));
+              row.appendChild(grp);
+            }
+            stage.appendChild(row);
+          }
+        })();
+        function show(n){
+          [1,2,3].forEach(function(i){
+            $("screen-"+i).classList.toggle("active", i===n);
+            $("dot-"+i).classList.toggle("on", i<=n);
+          });
+          $("step-label").textContent="Step "+n+" of 3";
+        }
+        function isConnected(){ return $("api-connected").classList.contains("show"); }
+        function refreshContinue(){
+          var btn=$("to-step3");
+          if(way==="way2"){ btn.disabled=false; btn.textContent="Continue to Step 3"; }
+          else if(isConnected()){ btn.disabled=false; btn.textContent="Continue to Step 3"; }
+          else { btn.disabled=true; btn.textContent="Connect a key to continue"; }
+        }
+        function selectWay(w){
+          way=w;
+          $("way1-card").classList.toggle("selected", w==="way1");
+          $("way2-card").classList.toggle("selected", w==="way2");
+          $("way1-card").setAttribute("aria-pressed", w==="way1"?"true":"false");
+          $("way2-card").setAttribute("aria-pressed", w==="way2"?"true":"false");
+          $("way1-panel").style.display=w==="way1"?"":"none";
+          $("way2-panel").style.display=w==="way2"?"":"none";
+          refreshContinue();
+        }
+        $("start-btn").addEventListener("click", function(){ show(2); });
+        $("back-1").addEventListener("click", function(){ show(1); });
+        $("back-2").addEventListener("click", function(){ show(2); });
+        $("way1-card").addEventListener("click", function(){ selectWay("way1"); });
+        $("way2-card").addEventListener("click", function(){ selectWay("way2"); });
+        $("to-step3").addEventListener("click", function(){
+          $("mode-label").textContent = way==="way1" ? "Way 1 \u00b7 Online with your key" : "Way 2 \u00b7 On your computer, no key";
+          $("way2-strip").style.display = way==="way2" ? "block" : "none";
+          show(3);
+        });
+        new MutationObserver(refreshContinue).observe($("api-connected"), { attributes:true, attributeFilter:["class"] });
+        /* Info modal */
+        function openInfo(){ $("info-modal").classList.add("open"); }
+        function closeInfo(){ $("info-modal").classList.remove("open"); }
+        $("info-btn").addEventListener("click", openInfo);
+        $("info-close").addEventListener("click", closeInfo);
+        $("info-back").addEventListener("click", closeInfo);
+        document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeInfo(); });
+        /* Every "download the pack" button runs the one real download in the modal */
+        Array.prototype.forEach.call(document.querySelectorAll(".pack-dl"), function(b){
+          b.addEventListener("click", function(){ $("dl-zip").click(); openInfo(); });
+        });
+        refreshContinue();
+      })();
+    </script>
+  </body>
+</html>

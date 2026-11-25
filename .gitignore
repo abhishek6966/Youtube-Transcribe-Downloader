@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Your transcripts (don't publish other people's lyrics)
+transcripts/
+*.txt
+!README.md
+
+# Secrets — never commit these
+.env
+*.key
+*api*key*
+config.local.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
