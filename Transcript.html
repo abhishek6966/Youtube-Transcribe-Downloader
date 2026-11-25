@@ -328,8 +328,32 @@
         font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
         font-size:13.5px;line-height:1.6;flex:1 1 auto;min-height:52px;resize:none;width:100%;
       }
+      /* ---------- Transcript panel: tabs + side-by-side columns ----------
+         ONE panel replaces the two stacked boxes. A tab bar on top
+         switches between Side by side, Original and English letters.
+         The view area takes whatever height the panel has left (flex,
+         min-height:0), and each column's textarea scrolls INSIDE
+         itself - the page never scrolls. Both columns share the same
+         font size and line height (the textarea rule above), so the
+         lines stay matched across the two columns. */
+      .tx-tabs{
+        display:flex;gap:4px;flex:none;margin-bottom:10px;padding:4px;
+        background:var(--surface-2);border:1px solid var(--line);border-radius:11px;
+      }
+      .tx-tab{
+        flex:1 1 0;min-width:0;min-height:38px;border:0;border-radius:8px;cursor:pointer;
+        background:transparent;color:var(--ink-2);font-weight:700;font-size:13.5px;
+        padding:7px 6px;line-height:1.25;
+      }
+      .tx-tab:hover{color:var(--ink)}
+      .tx-tab[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+      .tx-view{flex:1 1 auto;min-height:0;display:flex;gap:10px}
+      .tx-col{flex:1 1 0;min-width:0;min-height:0;display:flex;flex-direction:column}
+      .tx-col textarea{flex:1 1 auto;min-height:0}
+      .tx-view[data-view="original"] #tx-col-english{display:none}
+      .tx-view[data-view="english"] #tx-col-original{display:none}
       /* The listening panel: for a video with no captions. The connected
-         provider (Groq / OpenAI) really does listen - the file goes to
+         provider (Groq / OpenAI / Gemini) really does listen - the file goes to
          its Whisper model from this page and the words come back timed. */
       .listen-panel{margin-top:10px;border:1.5px dashed var(--line);border-radius:12px;padding:10px 12px;background:var(--surface-2);flex:none;display:flex;align-items:center;gap:12px;text-align:left}
       .listen-panel.drag{border-color:var(--red);background:var(--red-soft)}
@@ -414,11 +438,34 @@
         .thumb-wrap{width:196px}
       }
       @media (max-width:680px){
-        .studio{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
-        .sel-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+        /* One column, split by proportion instead of by content: the
+           video panel gets 46% of the studio height and the transcript
+           panel 54% (about 46% of the whole screen) no matter what the
+           video panel holds, so the transcript view can never be
+           squeezed to zero by the panel above it. */
+        .studio{grid-template-columns:1fr;grid-template-rows:minmax(0,46fr) minmax(0,54fr)}
+        /* Non-essential video-panel text gives its room to the words:
+           the route note, the Way 2 strip's paragraph (its download
+           button stays) and the empty-preview box are hidden. The
+           script only ever clears the preview box's inline display
+           back to "", so this rule holds in every state. */
+        .route-note{display:none}
+        .way2-strip p{display:none}
+        .preview-empty{display:none}
+        /* Tighter video-panel spacing so its real controls - link,
+           preview, the two dropdowns, the big button - fit their 46% */
+        .panel{padding:10px 12px}
+        .panel h2{margin-bottom:5px}
+        .panel label.field{margin-bottom:4px}
+        .sel-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:8px}
         .sel-row select.premium{font-size:13.5px;padding-left:10px}
-        .thumb-wrap{width:150px}
+        .video-box{margin-top:8px;padding:8px;gap:10px}
+        .thumb-wrap{width:132px}
         .video-meta .vtitle{-webkit-line-clamp:2}
+        .btn-big{min-height:46px;margin-top:9px}
+        .panel .status{margin-top:8px}
+        .api-connected{margin-top:8px;padding-top:7px}
+        .way2-strip{margin-top:8px;padding-top:7px}
         .save-hint{display:none}
         .listen-panel{flex-direction:column;align-items:stretch;text-align:center}
         .listen-panel .btn{width:100%}
@@ -427,6 +474,15 @@
         .export-row{flex-wrap:nowrap;gap:6px}
         .export-row .btn{flex:0 1 auto;min-width:0;min-height:42px;padding:8px 6px;font-size:12px;white-space:nowrap}
         textarea{min-height:44px}
+        .tx-col textarea{min-height:0}
+        .tx-tabs{margin-bottom:8px}
+        .tx-tab{font-size:12px;padding:6px 3px;min-height:36px}
+        /* The words always get a usable box: at least 180px for the
+           view (label + scrolling textarea), and the hint under it is
+           a fixed flex row of its own so it can never ride up over
+           the transcript text. */
+        .tx-view{gap:7px;min-height:180px}
+        .panel .hint{flex:none}
       }
       @media (max-width:560px){
         .app{padding:0 10px}
@@ -664,10 +720,21 @@
 
             <div class="panel" aria-label="Transcript">
               <h2>Your transcript</h2>
-              <label class="field" for="transcript">The words</label>
-              <textarea id="transcript" placeholder="The words will appear here, second by second, each line with its time. You can also paste words here yourself." spellcheck="false"></textarea>
-              <label class="field" for="transcript-en" style="margin-top:10px">The same words in English letters</label>
-              <textarea id="transcript-en" readonly placeholder="The same words will appear here in English letters, spelled the way they sound, with the same times - so you can read them aloud." spellcheck="false" style="background:var(--surface-2)"></textarea>
+              <div class="tx-tabs" role="tablist" aria-label="Transcript view">
+                <button type="button" class="tx-tab" id="tab-side" role="tab" data-view="side" aria-selected="true">Side by side</button>
+                <button type="button" class="tx-tab" id="tab-original" role="tab" data-view="original" aria-selected="false">Original</button>
+                <button type="button" class="tx-tab" id="tab-english" role="tab" data-view="english" aria-selected="false">English letters</button>
+              </div>
+              <div class="tx-view" id="tx-view" data-view="side">
+                <div class="tx-col" id="tx-col-original">
+                  <label class="field" for="transcript">Original</label>
+                  <textarea id="transcript" placeholder="The words will appear here, second by second, each line with its time. You can also paste words here yourself." spellcheck="false"></textarea>
+                </div>
+                <div class="tx-col" id="tx-col-english">
+                  <label class="field" for="transcript-en">English letters</label>
+                  <textarea id="transcript-en" readonly placeholder="The same words will appear here in English letters, spelled the way they sound, with the same times - so you can read them aloud." spellcheck="false" style="background:var(--surface-2)"></textarea>
+                </div>
+              </div>
               <p class="hint" style="margin-top:8px">Already have the words in a file?
                 <button type="button" class="linklike" id="file-btn">Add them from a file</button>
                 <input type="file" id="file-input" class="sr-only" accept=".srt,.vtt,.txt,text/plain" />
@@ -675,7 +742,7 @@
               <div class="listen-panel" id="audio-hint" style="display:none">
                 <div class="lp-text">
                   <h3>No captions? Let <span id="audio-provider">your provider</span> listen</h3>
-                  <p>This really works: pick the video&rsquo;s sound file (MP3) or a video file from this device &mdash; or drop it here &mdash; and <span id="audio-provider-2">the provider</span>&rsquo;s listening model writes down the words it hears, with their times. Up to 25&nbsp;MB.</p>
+                  <p>This really works: pick the video&rsquo;s sound file (MP3) or a video file from this device &mdash; or drop it here &mdash; and <span id="audio-provider-2">the provider</span>&rsquo;s listening model writes down the words it hears, with their times. <span id="audio-limit">Up to 25 MB.</span></p>
                 </div>
                 <button type="button" class="btn btn-dark" id="audio-btn">Choose a sound or video file</button>
                 <input type="file" id="audio-input" class="sr-only" accept="audio/*,video/*,.mp3,.m4a,.wav,.ogg,.webm,.mp4,.mov" />
@@ -735,7 +802,7 @@
             <li>One <b>OpenRouter</b> key opens models from 100+ providers.</li>
             <li>Have the free worker set up? Paste its address in the <b>Online helper address</b> field on Step 2 &mdash; YouTube links then work fully online, even with no captions.</li>
             <li>A key with no known shape is refused, never guessed.</li>
-            <li>With a Groq or OpenAI key, the provider can also listen to a sound file you pick.</li>
+            <li>With a Groq, OpenAI or Gemini key, the provider can also listen to a sound file you pick.</li>
             <li>Your key stays in this tab only. It is never saved.</li>
             <li>Your key is sent only to its own provider.</li>
           </ul>
@@ -1262,7 +1329,7 @@ FASTER WITH YOUR OWN KEY (OPTIONAL)
   and fixes clear mistakes; both saved files are then made from
   the checked words. It cannot recover a word that was misheard
   in the first place, so sung words can still be wrong.
-- With a Groq or OpenAI key, the provider can also listen to a
+- With a Groq, OpenAI or Gemini key, the provider can also listen to a
   sound file you choose and write the words down with times.
 - A key is only ever sent to the provider it belongs to.
 - The key stays in the open tab only. It is never saved, never
@@ -1681,10 +1748,10 @@ HONEST LIMITS
         })();
         function refreshRouteNote(){
           var el=$("route-note"); if(!el) return;
-          if(WORKER_URL && ai.connected && ai.audioModel && ai.provider && ai.provider.type==="openai"){
+          if(WORKER_URL && ai.connected && ai.audioModel && ai.provider && (ai.provider.type==="openai" || ai.provider.type==="gemini")){
             el.textContent="Link route is on: your worker fetches the sound and "+ai.provider.name+" writes the words.";
           }else if(WORKER_URL){
-            el.textContent="Worker is set - captions come through your worker first. Connect a Groq or OpenAI key in Step 2 and it can also transcribe links from their sound.";
+            el.textContent="Worker is set - captions come through your worker first. Connect a Groq, OpenAI or Gemini key in Step 2 and it can also transcribe links from their sound.";
           }else{
             el.textContent="No online helper set, so the order is: captions first (public caption servers asked together, with YouTube's old caption address as a last try), then the listening panel, then the computer pack. Add the helper address on Step 2 to transcribe any link fully online.";
           }
@@ -1825,9 +1892,10 @@ HONEST LIMITS
           $("api-connected").classList.add("show");
           var ah=$("audio-hint");
           if(ah){
-            var canListen=!!(ai.audioModel && ai.provider && ai.provider.type==="openai");
+            var canListen=!!(ai.provider && (ai.provider.type==="openai" || ai.provider.type==="gemini") && (ai.audioModel || (ai.provider.type==="gemini" && ai.chatModel)));
             ah.style.display=canListen? "" : "none";
             if(canListen){ $("audio-provider").textContent=ai.provider.name; var ap2=$("audio-provider-2"); if(ap2) ap2.textContent=ai.provider.name; }
+            var al=$("audio-limit"); if(al) al.textContent=(ai.provider && ai.provider.type==="gemini")? "Up to 20 MB." : "Up to 25 MB.";
           }
           var pb=$("polish-btn");
           if(pb) pb.style.display=ai.chatModel? "" : "none";
@@ -2222,9 +2290,151 @@ HONEST LIMITS
             setStatus(status2El,"ok","Checked by "+prettyModel(ai.chatModel)+" from "+ai.provider.name+" - clear mistakes fixed, same lines, same order, same language. Now save both files.");
           }).finally(function(){ polishBtn.disabled=false; stopProcessing(); });
         });
+        /* ---------- Gemini listening helpers ----------
+           Gemini takes the sound as inline base64 data in a
+           generateContent call (never the Files API here - the panel
+           is for files on the device). The reply is plain timed text,
+           parsed into the same entries every other route produces. */
+        function guessAudioMime(file){
+          if(file && file.type) return file.type;
+          var name=String((file&&file.name)||"").toLowerCase();
+          if(/\.mp3$/.test(name)) return "audio/mpeg";
+          if(/\.m4a$/.test(name)) return "audio/mp4";
+          if(/\.wav$/.test(name)) return "audio/wav";
+          if(/\.ogg$/.test(name)) return "audio/ogg";
+          if(/\.webm$/.test(name)) return "audio/webm";
+          if(/\.mp4$/.test(name)) return "video/mp4";
+          if(/\.mov$/.test(name)) return "video/quicktime";
+          return "audio/mpeg";
+        }
+        function fileToBase64(file){
+          return new Promise(function(resolve, reject){
+            var reader=new FileReader();
+            reader.onload=function(){
+              var s=String(reader.result||"");
+              var comma=s.indexOf(",");
+              resolve(comma>=0? s.slice(comma+1) : s);
+            };
+            reader.onerror=function(){ reject(reader.error||new Error("read")); };
+            reader.readAsDataURL(file);
+          });
+        }
+        function parseGeminiTranscript(text){
+          var rawLines=String(text||"").replace(/\r/g,"").split("\n");
+          var stamped=[];
+          rawLines.forEach(function(line){
+            var m=line.match(/^\s*\[(\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d+)?)\]\s*(.*)$/);
+            if(m){ stamped.push({ start:parseTimeToken(m[1]), body:m[2]||"" }); }
+            else if(stamped.length && line.trim()){ stamped[stamped.length-1].body+=" "+line.trim(); }
+          });
+          if(!stamped.length){
+            var whole=stripLabels(String(text||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim());
+            if(whole) return [{ start:0, dur:2, text:whole }];
+            return [];
+          }
+          var entries=[];
+          stamped.forEach(function(s){
+            var rawBody=s.body||"";
+            var stamps=[];
+            var marked=rawBody.replace(/<(\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d+)?)>/g, function(mm, ts){ stamps.push(parseTimeToken(ts)); return " "; });
+            var body=stripLabels(marked.replace(/<[^>]+>/g,"").replace(/\s+/g," ").trim());
+            if(!body) return;
+            var entry={ start:s.start, dur:2, text:body };
+            var ws=body.split(/\s+/);
+            if(stamps.length===ws.length) entry.wt=stamps;
+            else if(stamps.length===ws.length-1) entry.wt=[s.start].concat(stamps);
+            entries.push(entry);
+          });
+          for(var i=0;i<entries.length;i++){
+            if(i+1<entries.length) entries[i].dur=Math.max(0.5, entries[i+1].start-entries[i].start);
+            else entries[i].dur=2;
+          }
+          return entries;
+        }
+        function transcribeAudioFileGemini(file){
+          var safeFileName=String(file.name||"your file").replace(/[<>&"]/g,"");
+          var btn=$("audio-btn"); btn.disabled=true;
+          startProcessing();
+          var picked=ai.audioModel||ai.chatModel;
+          setStatus(status2El,"info",'<span class="spinner" aria-hidden="true"></span>'+ai.provider.name+" is listening to <b>"+safeFileName+"</b> with "+prettyModel(picked)+"&hellip;");
+          var lang=(langSelect.value||"").trim().split("-")[0];
+          var candidates=(ai.audioModels && ai.audioModels.length)? ai.audioModels.slice() : (ai.chatModels||[]).slice();
+          if(picked){
+            candidates=candidates.filter(function(m){ return m!==picked; });
+            candidates.unshift(picked);
+          }
+          if(!candidates.length && picked) candidates=[picked];
+          var promptBits=[];
+          if(state.title) promptBits.push(state.title+".");
+          promptBits.push("Transcribe every word exactly as heard - names, fast lines and sung words included. Do not add words that are not sung or spoken. Never write sound descriptions like [music], [pause] or [संगीत] - words only, in the language they are sung or spoken in, never translated.");
+          promptBits.push("Write one line per few seconds, each line starting with its time as [MM:SS], for example [00:07] the words here.");
+          if(lang) promptBits.push("The language is "+lang+" and the words stay in it.");
+          var prompt=promptBits.join(" ");
+          var mime=guessAudioMime(file);
+          fileToBase64(file).then(function(b64){
+            function attemptGemini(idx){
+              var model=candidates[idx];
+              var body={ contents:[{ parts:[ { text:prompt }, { inlineData:{ mimeType:mime, data:b64 } } ] }], generationConfig:{ temperature:0 } };
+              return withTimeout(fetch(ai.provider.base+"/models/"+encodeURIComponent(model)+":generateContent", {
+                method:"POST",
+                headers:{ "Content-Type":"application/json", "x-goog-api-key":ai.key },
+                body:JSON.stringify(body)
+              }), 180000).then(function(r){
+                if(!r.ok){
+                  return r.json().catch(function(){ return null; }).then(function(j){
+                    var msg=(j && j.error && j.error.message)? String(j.error.message) : "";
+                    var err=new Error("http "+r.status);
+                    err.status=r.status;
+                    if(msg) err.geminiMessage=msg.replace(/[<>&]/g,"");
+                    throw err;
+                  });
+                }
+                return r.json();
+              }).then(function(d){
+                ai.audioModel=candidates[idx];
+                return d;
+              }).catch(function(err){
+                if(idx+1<candidates.length) return attemptGemini(idx+1);
+                throw err;
+              });
+            }
+            return attemptGemini(0);
+          }).then(function(d){
+            var parts=(d.candidates&&d.candidates[0]&&d.candidates[0].content&&d.candidates[0].content.parts)||[];
+            var replyText=parts.map(function(x){ return x.text||""; }).join("\n");
+            var entries=parseGeminiTranscript(replyText);
+            if(!entries.length) throw new Error("empty");
+            state.entries=entries;
+            renderEntries();
+            function done(checked){
+              setStatus(status2El,"ok", ai.provider.name+" listened and wrote the words down"+
+                (checked? ". The words were then checked twice - fixed, then verified" : "")+
+                ". Read them above, then save both files.");
+            }
+            if(ai.chatModel){
+              aiPolishEntries().then(function(checked){ done(!!checked); });
+            }else{ done(false); }
+          }).catch(function(err){
+            if(err && (err.status===401 || err.status===403 || /^http (401|403)$/.test(err.message||""))){
+              setStatus(status2El,"err",ai.provider.name+" did not accept that key for listening. Reconnect your key in Step 2, then try the file again.");
+            }else if(err && err.message==="timeout"){
+              setStatus(status2El,"err","Listening took too long and timed out - the file may be long or your connection slow. Try a shorter or smaller file.");
+            }else if(err && err.geminiMessage){
+              setStatus(status2El,"err",err.geminiMessage);
+            }else{
+              setStatus(status2El,"err","That listening didn&rsquo;t work. Check your internet and try again - or get the words from a video link instead.");
+            }
+          }).finally(function(){ btn.disabled=false; stopProcessing(); });
+        }
         function transcribeAudioFile(file){
-          if(!ai.connected || !ai.audioModel || ai.provider.type!=="openai"){
-            setStatus(status2El,"err","Connect a key with a listening model first - Groq and OpenAI keys can listen.");
+          if(!ai.connected || !ai.provider || (ai.provider.type!=="openai" && ai.provider.type!=="gemini") || (ai.provider.type==="openai" && !ai.audioModel) || (ai.provider.type==="gemini" && !ai.audioModel && !ai.chatModel)){
+            setStatus(status2El,"err","Connect a key with a listening model first - Groq, OpenAI and Gemini keys can listen.");
+            return;
+          }
+          /* Gemini inline audio caps at 20 MB per file - say so up front,
+             in plain words, instead of sending it and failing quietly. */
+          if(ai.provider.type==="gemini" && file.size > 20*1024*1024){
+            setStatus(status2El,"err","That file is "+(file.size/1048576).toFixed(1)+" MB - too big for Gemini here (up to 20 MB). The worker link route handles bigger files through the Files API - or pick a smaller sound file.");
             return;
           }
           /* The providers refuse files over about 25 MB - say so up front,
@@ -2233,6 +2443,7 @@ HONEST LIMITS
             setStatus(status2El,"err","That file is "+(file.size/1048576).toFixed(1)+" MB - "+ai.provider.name+" only accepts files up to 25 MB. Pick a smaller sound file (an MP3 of the audio is usually well under that).");
             return;
           }
+          if(ai.provider.type==="gemini"){ transcribeAudioFileGemini(file); return; }
           var safeFileName=String(file.name||"your file").replace(/[<>&"]/g,"");
           var btn=$("audio-btn"); btn.disabled=true;
           startProcessing();
@@ -2333,7 +2544,7 @@ HONEST LIMITS
 
         /* ---------- transcribe a YouTube LINK through the worker ----------
            Used only when WORKER_URL is set and a listening key (Groq /
-           OpenAI) is connected. The page sends the link - never a file -
+           OpenAI / Gemini) is connected. The page sends the link - never a file -
            to the worker's /api/transcribe_link endpoint as JSON:
              { url, videoId, provider, base, apiKey, model,
                language (only when the user picked one), title }
@@ -2737,7 +2948,7 @@ HONEST LIMITS
              be transcribed from the link alone. If the worker fails or
              is not set up: captions, then the listening panel, then the
              computer pack. */
-          if(WORKER_URL && ai.connected && ai.audioModel && ai.provider && ai.provider.type==="openai"){
+          if(WORKER_URL && ai.connected && ai.audioModel && ai.provider && (ai.provider.type==="openai" || ai.provider.type==="gemini")){
             setStatus(statusEl,"info",'<span class="spinner" aria-hidden="true"></span>Your worker is fetching the sound and '+ai.provider.name+' is listening\u2026 this can take a little while on long videos.');
             transcribeViaWorker(id, lang).then(function(){
               btn.disabled=false; stopProcessing();
@@ -2782,7 +2993,7 @@ HONEST LIMITS
             if(err&&err.message==="notracks"){
               setStatus(statusEl,"warn","This video has no captions at all - that was checked properly, through every route. "+(ai.connected&&ai.audioModel? "Use the listening panel on the right: pick the video&rsquo;s sound file and "+ai.provider.name+" will write down the words it hears." : "The computer pack (top-right info button) can fetch the sound and write the words on your PC."));
             }else{
-              setStatus(statusEl,"warn","YouTube wouldn&rsquo;t hand this video&rsquo;s captions to a web page through any route - that is YouTube&rsquo;s block, not your internet. "+(ai.connected&&ai.audioModel? "Use the listening panel on the right: pick the video&rsquo;s sound file and "+ai.provider.name+" will write down the words it hears." : "With a Groq or OpenAI key connected, the listening panel on the right can write the words from a sound file - or the computer pack (top-right info button) can fetch the sound itself."));
+              setStatus(statusEl,"warn","YouTube wouldn&rsquo;t hand this video&rsquo;s captions to a web page through any route - that is YouTube&rsquo;s block, not your internet. "+(ai.connected&&ai.audioModel? "Use the listening panel on the right: pick the video&rsquo;s sound file and "+ai.provider.name+" will write down the words it hears." : "With a Groq, OpenAI or Gemini key connected, the listening panel on the right can write the words from a sound file - or the computer pack (top-right info button) can fetch the sound itself."));
             }
             transcriptEl.focus();
           }).finally(function(){ btn.disabled=false; stopProcessing(); });
@@ -2843,6 +3054,42 @@ HONEST LIMITS
           renderEnglishView();
           updateStats();
         });
+
+        /* ---------- transcript view tabs ----------
+           One panel, three views: Side by side (the default on screens
+           760px and wider), Original (the default on narrower screens)
+           and English letters. Tapping a tab is remembered for the rest
+           of this visit - the choice lives in this variable only, like
+           everything else on this page. In side-by-side the two columns
+           scroll together: moving one moves the other to the same
+           relative position, so the matched lines stay side by side. */
+        var txViewEl=$("tx-view"), txEnEl=$("transcript-en");
+        var txView=(window.innerWidth>=760)? "side" : "original";
+        function setTxView(v){
+          txView=v;
+          if(txViewEl) txViewEl.setAttribute("data-view", v);
+          Array.prototype.forEach.call(document.querySelectorAll(".tx-tab"), function(t){
+            t.setAttribute("aria-selected", t.getAttribute("data-view")===v? "true" : "false");
+          });
+        }
+        Array.prototype.forEach.call(document.querySelectorAll(".tx-tab"), function(t){
+          t.addEventListener("click", function(){ setTxView(t.getAttribute("data-view")); });
+        });
+        setTxView(txView);
+        var txSyncGuard=false;
+        function linkTxScroll(src, dst){
+          if(!src || !dst) return;
+          src.addEventListener("scroll", function(){
+            if(txView!=="side" || txSyncGuard) return;
+            var sMax=src.scrollHeight-src.clientHeight, dMax=dst.scrollHeight-dst.clientHeight;
+            if(sMax<=0 || dMax<=0) return;
+            txSyncGuard=true;
+            dst.scrollTop=(src.scrollTop/sMax)*dMax;
+            requestAnimationFrame(function(){ txSyncGuard=false; });
+          });
+        }
+        linkTxScroll(transcriptEl, txEnEl);
+        linkTxScroll(txEnEl, transcriptEl);
 
         /* ---------- adding words from a file ---------- */
         var fileInput=$("file-input");
@@ -3171,16 +3418,35 @@ HONEST LIMITS
         });
         $("copy-btn").addEventListener("click", function(){
           if(!needText()) return;
-          /* Copy exactly what the box shows - the words with their times. */
-          var text=transcriptEl.value.replace(/\s+$/,"")+"\n";
-          function done(){ setStatus(status2El,"ok","Copied - you can paste the words anywhere."); }
+          /* Copy the view currently shown - the words with their times.
+             In side-by-side both versions are copied, the original
+             first and the English letters after it; a single tab copies
+             just that version. */
+          var origText=transcriptEl.value.replace(/\s+$/,"");
+          var enText=txEnEl? txEnEl.value.replace(/\s+$/,"") : "";
+          var text, msg;
+          if(txView==="english" && enText){
+            text=enText+"\n";
+            msg="Copied the English-letters version - you can paste it anywhere.";
+          }else if(txView==="side" && enText){
+            text=origText+"\n\n"+enText+"\n";
+            msg="Copied both versions - the original first, then the same words in English letters.";
+          }else{
+            text=origText+"\n";
+            msg="Copied - you can paste the words anywhere.";
+          }
+          function done(){ setStatus(status2El,"ok",msg); }
           if(navigator.clipboard&&navigator.clipboard.writeText){
             navigator.clipboard.writeText(text).then(done).catch(function(){ fallbackCopy(text); done(); });
           }else{ fallbackCopy(text); done(); }
         });
         function fallbackCopy(text){
-          transcriptEl.value=text; transcriptEl.select();
+          var tmp=document.createElement("textarea");
+          tmp.value=text;
+          tmp.style.position="fixed"; tmp.style.opacity="0";
+          document.body.appendChild(tmp); tmp.select();
           try{ document.execCommand("copy"); }catch(e){}
+          tmp.remove();
         }
         $("clear-btn").addEventListener("click", function(){
           transcriptEl.value=""; state.entries=[]; renderEnglishView(); updateStats(); clearStatus(status2El);

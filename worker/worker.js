@@ -8,6 +8,10 @@
 //   2. POST /api/transcribe  (multipart: file, provider, api_key, model?)
 //      Forwards the visitor's audio file to Groq / OpenAI Whisper and
 //      returns the timed transcript.
+//   3. POST /api/transcribe_link  (JSON: url, provider, api_key, model?, language?, title?)
+//      Fetches the video's sound server-side (YouTube player API) and
+//      transcribes it with the visitor's provider: Groq / OpenAI Whisper,
+//      or Google Gemini (Files API + generateContent, [MM:SS] lines).
 // The visitor's API key is NEVER stored or logged — it is only forwarded
 // to the provider it belongs to, for that one request.
 // Deploy (once, free): see worker/README.md in this folder.
@@ -16,6 +20,13 @@ const PROVIDERS = {
   groq: "https://api.groq.com/openai/v1/audio/transcriptions",
   openai: "https://api.openai.com/v1/audio/transcriptions",
 };
+
+// Gemini does not have a Whisper-style audio endpoint: it transcribes
+// through generateContent, with the sound uploaded first (Files API)
+// and the words asked for as [MM:SS] stamped lines.
+const GEMINI_FILES = "https://generativelanguage.googleapis.com/upload/v1beta/files";
+const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
+const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -135,6 +146,95 @@ async function innertubeKey() {
 //    or the computer pack is the way for them.
 //  - It is not real-time and not perfect: the audio is downloaded, then
 //    transcribed, and sung words can still be misheard.
+// Gemini transcription for a downloaded audio file. The sound is
+// uploaded once (Files API — no base64 blow-up), then generateContent is
+// asked for the words as [MM:SS] stamped lines, words only, never a
+// translation. The stamped lines come back as segments the page renders
+// exactly like Whisper segments. If Gemini will not stamp the lines,
+// the plain words come back as text and the page shows them as one block.
+// The uploaded file is deleted afterwards on a best-effort basis.
+function parseStampedLines(text) {
+  const segs = [];
+  for (const raw of String(text || "").split(/\r?\n/)) {
+    const m = raw.match(/^\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]\s*(.+)$/);
+    if (!m) continue;
+    const start = m[3] !== undefined
+      ? (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3])
+      : (+m[1]) * 60 + (+m[2]);
+    const line = m[4].replace(/\s+/g, " ").trim();
+    if (line) segs.push({ start, text: line });
+  }
+  return segs;
+}
+
+async function transcribeWithGemini(key, file, model, lang, title) {
+  const useModel = (model || "").trim() || GEMINI_DEFAULT_MODEL;
+  const promptBits = [];
+  if (title) promptBits.push(`The video is titled "${title}". Use it for names of people, places and songs.`);
+  promptBits.push(
+    "Transcribe every word in this audio exactly as heard — names, fast lines and sung words included. " +
+    "Do not add words that are not sung or spoken. Never write sound descriptions like [music], [pause] or [sangeet] — words only, " +
+    "in the language they are sung or spoken in, never translated. " +
+    "Write one line per few seconds, each line starting with its time as [MM:SS], for example [00:07] the words here."
+  );
+  if (lang) promptBits.push(`The language is ${lang}; keep the words in that language.`);
+  const prompt = promptBits.join(" ");
+
+  // 1. Upload the sound (Files API, multipart).
+  const upForm = new FormData();
+  upForm.append("metadata", new Blob([JSON.stringify({ file: { displayName: file.name || "audio" } })], { type: "application/json" }));
+  upForm.append("file", file);
+  const upRes = await fetch(`${GEMINI_FILES}?uploadType=multipart`, {
+    method: "POST",
+    headers: { "x-goog-api-key": key },
+    body: upForm,
+  });
+  const upData = await upRes.json().catch(() => ({}));
+  const fileUri = upData?.file?.uri;
+  const fileMime = upData?.file?.mimeType || file.type || "audio/webm";
+  if (!upRes.ok || !fileUri) {
+    return json({ ok: false, error: upData?.error?.message || `Gemini would not take the sound (${upRes.status}).` }, upRes.status || 502);
+  }
+
+  // 2. Ask for the stamped words.
+  let text = "";
+  try {
+    const genRes = await fetch(`${GEMINI_BASE}/models/${encodeURIComponent(useModel)}:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }, { fileData: { mimeType: fileMime, fileUri } }] }],
+        generationConfig: { temperature: 0 },
+      }),
+    });
+    const genData = await genRes.json().catch(() => ({}));
+    if (!genRes.ok) {
+      return json({ ok: false, error: genData?.error?.message || `Gemini said no (${genRes.status}).` }, genRes.status);
+    }
+    const parts = genData?.candidates?.[0]?.content?.parts || [];
+    text = parts.map((p) => p.text || "").join("");
+  } finally {
+    // 3. Best-effort delete of the uploaded sound — never fail the answer over it.
+    const name = String(fileUri).split("/").pop();
+    if (name) {
+      await fetch(`${GEMINI_BASE}/files/${encodeURIComponent(name)}`, {
+        method: "DELETE",
+        headers: { "x-goog-api-key": key },
+      }).catch(() => {});
+    }
+  }
+  // Strip any bracketed sound-description lines Gemini slipped in anyway.
+  const clean = String(text || "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && !/^\[(music|song|sangeet|instrumental|applause|laughter|silence|pause)\]/i.test(l))
+    .join("\n");
+  const segments = parseStampedLines(clean);
+  if (segments.length) return json({ ok: true, provider: "gemini", language: lang || "", segments });
+  if (clean) return json({ ok: true, provider: "gemini", language: lang || "", text: clean });
+  return json({ ok: false, error: "Gemini listened but wrote no words. Try again, or use the listening panel." }, 502);
+}
+
 async function transcribeLink(request) {
   const body = await request.json().catch(() => ({}));
   const provider = (body.provider || "").toString();
@@ -143,12 +243,16 @@ async function transcribeLink(request) {
   const title = (body.title || "").toString();
   const id = videoId(body.url || "");
   if (!id) return json({ ok: false, error: "That does not look like a YouTube link." }, 400);
-  if (!PROVIDERS[provider]) return json({ ok: false, error: "Provider must be groq or openai." }, 400);
+  if (provider !== "gemini" && !PROVIDERS[provider]) return json({ ok: false, error: "Provider must be groq, openai or gemini." }, 400);
   if (!key) return json({ ok: false, error: "An API key is needed." }, 400);
 
   // Ask YouTube's player API (Android client) for this video's streams.
+  // The player key is YouTube's own public web key, read from its
+  // homepage at runtime by innertubeKey() — never hard-coded, and never
+  // the visitor's provider key.
+  const ytKey = await innertubeKey();
   const player = await fetch(
-    "`https://www.youtube.com/youtubei/v1/player?key=${encodeURIComponent(key)}&prettyPrint=false`",
+    `https://www.youtube.com/youtubei/v1/player?key=${encodeURIComponent(ytKey)}&prettyPrint=false`,
     {
       method: "POST",
       headers: {
@@ -188,6 +292,10 @@ async function transcribeLink(request) {
   const buf = await audioRes.arrayBuffer();
   const ext = (audioFmt.mimeType || "").includes("webm") ? "webm" : "m4a";
   const file = new File([buf], `audio.${ext}`, { type: `audio/${ext}` });
+  // Gemini transcribes through generateContent, not a Whisper endpoint.
+  if (provider === "gemini") {
+    return transcribeWithGemini(key, file, (body.model || "").toString(), lang, title);
+  }
   const out = new FormData();
   out.append("file", file);
   out.append("model", (body.model || (provider === "groq" ? "whisper-large-v3-turbo" : "whisper-1")).toString());

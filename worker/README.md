@@ -12,7 +12,10 @@ need nothing installed:
 - `POST /api/transcribe_link` — the fix for videos with no captions: it
   asks YouTube's own player API for the video's audio stream, downloads
   it (capped at ~25 MB, the provider's upload limit), and sends it to
-  Groq / OpenAI Whisper. Body: `{url, provider, api_key, model?, language?, title?}`.
+  Groq / OpenAI Whisper — or to Google Gemini (Files API + generateContent,
+  which returns the words as [MM:SS] stamped lines). Body:
+  `{url, provider, api_key, model?, language?, title?}` where provider is
+  `groq`, `openai` or `gemini`.
   Some videos hide their audio behind a signature and return a clear
   error instead — for those, the listening panel or the computer pack is
   the way. It is not real-time and not perfect: the audio is downloaded,
