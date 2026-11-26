@@ -227,8 +227,9 @@ def capabilities():
 def run(path,opts,progress=lambda *a:None,models=None,cache_dir=None):
     """One source, bounded chunks/retries. Cloud use is explicit and optional."""
     models=models or LocalModels(); mode=opts.get('mode','advanced');lang=opts.get('language') or None; groqkey=opts.get('groq','');dgkey=opts.get('deepgram',''); use_local=opts.get('local',True); caps=capabilities(); warnings=[];providers=[];issues=[]; allwords=[];processed=0;raw=[]
+    groqmodels=opts.get('groqModels',['whisper-large-v3','whisper-large-v3-turbo'])
     with open(path,'rb') as f: fingerprint=hashlib.file_digest(f,'sha256').hexdigest()
-    cache_key=hashlib.sha256(json.dumps([VERSION,fingerprint,mode,lang,bool(groqkey),bool(dgkey),use_local,caps],sort_keys=True).encode()).hexdigest()
+    cache_key=hashlib.sha256(json.dumps([VERSION,fingerprint,mode,lang,bool(groqkey),bool(dgkey),use_local,caps,groqmodels],sort_keys=True).encode()).hexdigest()
     cache=Path(cache_dir)/cache_key if cache_dir and opts.get('cache') else None
     if cache:cache.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
@@ -259,13 +260,13 @@ def run(path,opts,progress=lambda *a:None,models=None,cache_dir=None):
             if enhanced:cut(enhanced,alt,a,b)
             tracks=[]; metadata=[]; names=[]; localwarn=[]; lang_found=lang; chunkissues=[]
             candidates=[]
-            if groqkey:candidates.append(('Groq large-v3',chunk,lambda p:groq(p,groqkey,'whisper-large-v3',lang)))
+            if groqkey and 'whisper-large-v3' in groqmodels:candidates.append(('Groq large-v3',chunk,lambda p:groq(p,groqkey,'whisper-large-v3',lang)))
             if use_local and caps['local_whisper']:candidates.append(('Local large-v3',chunk,lambda p:models.asr(p,'large-v3',lang)))
             if dgkey:candidates.append(('Deepgram nova-3',chunk,lambda p:deepgram(p,dgkey,lang)))
-            if groqkey:candidates.append(('Groq turbo',alt if enhanced else chunk,lambda p:groq(p,groqkey,'whisper-large-v3-turbo',lang)))
+            if groqkey and 'whisper-large-v3-turbo' in groqmodels:candidates.append(('Groq turbo',alt if enhanced else chunk,lambda p:groq(p,groqkey,'whisper-large-v3-turbo',lang)))
             elif use_local and caps['local_whisper']:candidates.append(('Local turbo',alt if enhanced else chunk,lambda p:models.asr(p,'large-v3-turbo',lang)))
             if enhanced and mode=='maximum':
-                if groqkey:candidates.append(('Groq large-v3 enhanced',alt,lambda p:groq(p,groqkey,'whisper-large-v3',lang)))
+                if groqkey and 'whisper-large-v3' in groqmodels:candidates.append(('Groq large-v3 enhanced',alt,lambda p:groq(p,groqkey,'whisper-large-v3',lang)))
                 elif use_local and caps['local_whisper']:candidates.append(('Local large-v3 enhanced',alt,lambda p:models.asr(p,'large-v3',lang)))
             # Prefer independent family over a repeated Whisper implementation.
             candidates.sort(key=lambda x: 1 if x[0]=='Deepgram nova-3' else (4 if 'enhanced' in x[0] else 2 if x[0]=='Local large-v3' and groqkey else 0 if 'large-v3' in x[0] else 3))

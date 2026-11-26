@@ -2714,6 +2714,7 @@ HONEST LIMITS
            auto-checked twice: a failed key is retried only when it
            changes, so the page never hammers a provider. */
         var connectInFlight=false, lastAutoKey="", autoTimer=null;
+        var studioSelectedProvider=null;
         function showRetry(show){
           var b=$("api-connect"); if(!b) return;
           b.style.display=show? "" : "none";
@@ -2753,7 +2754,7 @@ HONEST LIMITS
           /* Each key shape in the list belongs to exactly one provider, so
              the key is only ever sent to its own maker - never tried
              against another company. */
-          var chain=PROVIDERS.filter(function(p){ return p.match(key); });
+          var chain=studioSelectedProvider ? [studioSelectedProvider] : PROVIDERS.filter(function(p){ return p.match(key); });
           if(!chain.length){
             connectInFlight=false;
             showRetry(true);
@@ -2817,6 +2818,15 @@ HONEST LIMITS
         $("api-key").addEventListener("input", function(){ showRetry(false); scheduleAutoConnect(1100); });
         $("api-key").addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); attemptConnect(); } });
         $("api-connect").addEventListener("click", function(){ lastAutoKey=""; attemptConnect(); });
+        // Same-origin, in-memory handoff from the advanced studio. Never put keys in URLs or storage.
+        window.addEventListener("message",function(e){
+          if(window.parent===window||e.source!==window.parent||e.origin!==location.origin)return;
+          var d=e.data;if(!d||d.type!=="studio-classic-connect"||typeof d.key!=="string"||d.key.length<12||d.key.length>512||/\s/.test(d.key))return;
+          var p=providerById(d.provider);if(!p)return;
+          studioSelectedProvider=p;$("start-btn").click();$("way1-card").click();$("api-key").value=d.key;attemptConnect();
+        });
+        $("api-key").addEventListener("input",function(){studioSelectedProvider=null;});
+
         /* Ask the connected model to check the words: fix clear mishearings and
            spelling, keep the same lines, same order, same language. Returns
            true when the checked words were applied. Never throws. */

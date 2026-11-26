@@ -6,3 +6,7 @@
 - `python tests/test_timeline_browser.py`: legacy karaoke/timing regression; simulated player.
 
 These are software tests, not real ASR accuracy benchmarks. Optional Demucs/WhisperX and live provider calls are not exercised. Install Playwright and Chromium to run browser tests.
+
+- `python tests/test_wizard_browser.py`: simulated provider discovery and responsive wizard.
+- `python tests/test_classic_handoff.py`: simulated classic receiver; external network resources blocked.
+- `python tests/test_restored_workspace.py`: preview metadata mock, Maximum recheck, clear, SRT import, progress, viewport.

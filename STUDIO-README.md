@@ -6,7 +6,7 @@
 
 1. Choose an authorized audio/video file, or enter a YouTube URL and confirm permission to process the recording.
 2. Choose Fast, Advanced (default), or Maximum. Leave language on Auto unless you know it. In the computer package, no cloud key is needed when local Whisper is installed.
-3. Click **Transcribe & verify**. Read the progress and quality report; tap a word to listen to its time interval and view the competing predictions. Export TXT, SRT or audit JSON. Click the original or English-letter view if you prefer one column.
+3. Click **Get the transcript**. Read the progress and quality report; tap a word to listen to its time interval and view the competing predictions. Export TXT, SRT or audit JSON. Click the original or English-letter view if you prefer one column.
 
 To use independent cloud recognition, open **Recognition engines & privacy** and enter a Groq and/or Deepgram key. Only connect providers to which you consent to sending your audio. A key is not required for local-only processing. The models may be paid; multiple passes cost more. Keys are kept only in session memory, not embedded in files or reports. With checkpoints enabled, audio hashes, transcript words, and raw recognition evidence are saved in `.studio-cache`; clear them from the UI. Re-running the identical source and processing settings reuses completed eligible chunks. A stopped job may be restarted, not continued by a background agent. Checkpoints are opt-in, not encrypted; protect the local folder.
 
@@ -39,3 +39,21 @@ No universal 100% transcription accuracy. This release includes genuine software
 ## Tests
 
 Run `python tests/test_universal.py`, `python tests/test_local_service.py`, and (with Playwright and Chromium installed) `python tests/test_studio_browser.py` and `python tests/test_timeline_browser.py`. Browser tests simulate provider results and the legacy YouTube player; new browser tests decode a real synthetic WAV. Loopback tests use a mocked recognition engine. To measure real performance, use a legally obtained recording and human-annotated word array `[ {"text":"word", "start":0.1, "end":0.4} ]`, and run `python benchmark.py human.json transcript-audit.json --output metrics.json`. Measure on different languages, accents, songs, and noise levels before advertising performance. For languages without whitespace word boundaries, use language-appropriate tokenization for WER or CER.
+
+## Three-step studio
+
+1. **Welcome** — animated preview and Start.
+2. **Connect AI** — paste a Groq key for automatic live discovery, or select Deepgram if its key format is ambiguous. Groq selects only available supported Whisper models; Deepgram checks its project catalog for Nova-3 (project/model-list permissions are required). The other original AI providers connect through the Classic workflow in the same tab, with in-memory credential handoff. They do not gain advanced audio consensus capabilities. Unknown key formats require explicit provider selection. Keys are not saved in URLs or browser storage.
+3. **Transcribe** — the source and player are on the left; transcript and exports are on the right. Word evidence and quality reports open in-panel. On small screens or when expanding settings, the relevant panel scrolls instead of the outer page. The computer route can continue without a key when local Whisper is installed.
+
+| Welcome | Connect AI | Workspace |
+| --- | --- | --- |
+| ![Welcome](docs/readme/studio-step-welcome.webp) | ![Connect](docs/readme/studio-step-connect.webp) | ![Workspace](docs/readme/studio-step-workspace.webp) |
+
+Model catalog tests use simulated provider responses; live keys and permissions still need real-world testing.
+
+## Restored workspace controls
+
+Step 3 defaults to a YouTube link and shows the original-style preview when a valid ID is entered. The audio tab and upload panel select local media. Listening models are automatically selected from connected supported engines; Manage AI opens the provider connection page. The trusted helper is configured on Step 2. Check the words offers a fresh Maximum-mode audio pass, with confirmation before a successful run replaces the current result. Imported SRT, VTT and timestamped TXT are explicitly estimated at word level. Advanced tools contains the reference field (used on the next run), word evidence, quality and JSON export. The original Classic workflow remains in `Transcript.html`.
+
+Live site: https://abhishek6966.github.io/Youtube-Transcribe-Downloader/

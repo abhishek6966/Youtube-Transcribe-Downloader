@@ -28,6 +28,10 @@ def settings(d):
         v=str(d.get(k,'')).strip()
         if len(v)>512 or any(c in v for c in '\r\n'):raise ValueError('Invalid API key.')
         result[k]=v
+    if 'groqModels' in d:
+        models=d['groqModels']
+        if not isinstance(models,list) or any(m not in ('whisper-large-v3','whisper-large-v3-turbo') for m in models):raise ValueError('Invalid Groq audio model list.')
+        result['groqModels']=models
     return result
 
 def execute(job,source,opts,remote=False):
