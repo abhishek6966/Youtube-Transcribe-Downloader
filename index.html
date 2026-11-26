@@ -561,6 +561,136 @@
       @media(max-height:820px){#screen-3 .save-hint{display:none}#screen-3 .listen-panel p{font-size:12px}#screen-3 .thumb-wrap.playing{width:min(100%,calc(28dvh * 16 / 9))}}
       @media(max-width:1000px){#screen-3 .export-row .btn{padding:8px 10px;font-size:13px}#screen-3 .listen-panel{gap:8px;flex-wrap:wrap}#screen-3 .listen-panel .btn{padding:8px 10px}}
       @media(max-width:680px){#screen-3 .studio{grid-template-columns:1fr;grid-template-rows:minmax(0,44fr) minmax(0,56fr)}#screen-3 .panel{padding:10px}#screen-3 .thumb-wrap{width:132px}#screen-3 .thumb-wrap.playing{width:min(100%,calc(20dvh * 16 / 9))}#screen-3 .tx-view{min-height:104px}#screen-3 .export-row{flex-wrap:wrap}#screen-3 .export-row .btn{font-size:11.5px;padding:6px 8px;min-height:36px}#screen-3 .listen-panel p{display:none}#screen-3 .listen-panel{padding:6px}#screen-3 .listen-panel .btn{min-height:36px}#screen-3 .karaoke-scroll{font-size:17px}#screen-3 .tx-col textarea{font-size:14px}#screen-3 .tx-tab{font-size:12px}#screen-3 .panel h2{font-size:18px}}
+
+      /* Responsive welcome and connection screens. Only these two steps
+         use this frame. Natural content size is constrained by the actual
+         viewport; action rows never shrink or disappear below the fold.
+         On exceptionally short displays, only the content region scrolls. */
+      .app:has(#screen-1.active,#screen-2.active){
+        height:100vh;height:100dvh;max-width:1180px;width:100%;
+        padding-top:env(safe-area-inset-top,0px);
+        padding-bottom:env(safe-area-inset-bottom,0px);
+        padding-left:max(clamp(10px,2vw,22px),env(safe-area-inset-left,0px));
+        padding-right:max(clamp(10px,2vw,22px),env(safe-area-inset-right,0px));
+        overflow:hidden;
+      }
+      .app:has(#screen-1.active,#screen-2.active) .topbar{padding:clamp(4px,1.2dvh,12px) 2px 4px}
+      #screen-1,#screen-2{padding:clamp(4px,1dvh,10px) 2px clamp(6px,1.4dvh,14px);overflow:hidden}
+      #screen-1 .landing,#screen-2 .choose{flex:0 1 auto;max-height:100%;min-height:0;min-width:0;overflow:hidden;margin:auto}
+      #screen-1 .landing{max-width:680px}
+      #screen-1 .landing-content,#screen-2 .choose-content{
+        flex:0 1 auto;min-height:0;min-width:0;width:100%;overflow-y:auto;overflow-x:hidden;
+        overscroll-behavior:contain;scrollbar-width:thin;padding:3px 3px 5px;
+        scroll-padding-block:8px;
+      }
+      #screen-1 .landing-content{display:flex;flex-direction:column;align-items:center}
+      #screen-1 .landing-content>*{flex:none;max-width:100%}
+      #screen-1 .landing h1{font-size:clamp(27px,min(5.8vw,6.2dvh),52px);line-height:1.12;overflow-wrap:anywhere}
+      #screen-1 .landing .lede{font-size:clamp(14px,2.05dvh,18px);margin-top:clamp(8px,1.5dvh,14px);line-height:1.45}
+      #screen-1 .demo-card{display:block;margin-top:clamp(10px,2.3dvh,22px);padding:clamp(8px,1.7dvh,16px) clamp(10px,2vw,18px)}
+      #screen-1 .demo-lines{gap:clamp(3px,.8dvh,7px);margin-top:clamp(5px,1.2dvh,11px)}
+      #screen-1 .demo-line .words{overflow:hidden}
+      #screen-1 .demo-files{margin-top:clamp(6px,1.4dvh,13px);gap:6px}
+      #screen-1 .demo-file{padding:6px 8px}
+      #screen-1 .demo-file .fname{white-space:normal;overflow-wrap:anywhere}
+      #screen-1 .chips{display:flex;gap:5px;margin-top:clamp(8px,2dvh,20px)}
+      #screen-1 .chips span{font-size:12px;padding:4px 9px}
+      #screen-1 .landing-actions{flex:none;width:100%;padding:0 3px;text-align:center}
+      #screen-1 .btn-start{margin-top:clamp(8px,2dvh,24px);min-height:clamp(44px,6.3dvh,58px);max-width:100%;font-size:clamp(15px,2.2dvh,17px)}
+      #screen-1 .landing .fine{margin-top:clamp(5px,1.2dvh,12px);font-size:12.5px;line-height:1.35}
+      #screen-1 .file-banner{overflow-wrap:anywhere;margin-top:12px}
+      #screen-2 .choose{max-width:840px}
+      #screen-2 .choose h2{font-size:clamp(22px,min(4.5vw,4.2dvh),30px)}
+      #screen-2 .choose .sub{font-size:clamp(13px,1.9dvh,15px);margin-top:5px;line-height:1.4}
+      #screen-2 .way-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(7px,1.3dvh,12px);margin-top:clamp(8px,1.8dvh,18px)}
+      #screen-2 .way-card{min-width:0;padding:clamp(9px,1.5dvh,16px) clamp(10px,2vw,18px);overflow-wrap:anywhere}
+      #screen-2 .way-card .way-tag{font-size:11px;margin-bottom:5px;padding:3px 8px}
+      #screen-2 .way-card h3{font-size:clamp(15px,2.4dvh,18px)}
+      #screen-2 .way-card p{display:block;font-size:clamp(12px,1.65dvh,13.5px);line-height:1.35;margin-top:4px}
+      #screen-2 .way-panel{margin-top:clamp(8px,1.5dvh,14px);padding:clamp(10px,1.5dvh,16px) clamp(10px,2vw,18px);min-width:0;overflow-wrap:anywhere}
+      #screen-2 .api-note{display:block;font-size:clamp(12px,1.6dvh,12.5px);line-height:1.4;margin-top:6px}
+      #screen-2 .api-row{gap:8px;margin-top:8px}
+      #screen-2 .api-row input{flex:1 1 170px;min-width:0}
+      #screen-2 .api-row .btn{max-width:100%;white-space:normal}
+      #screen-2 input,#screen-2 select{font-size:16px;min-width:0;max-width:100%}
+      #screen-2 .status{overflow-wrap:anywhere}
+      #screen-2 .nav-row{margin-top:clamp(6px,1.7dvh,16px);padding:2px 3px 3px;flex:none;min-width:0}
+      #screen-2 .nav-row .btn{min-height:44px;padding:8px 12px;white-space:normal;line-height:1.25}
+      #screen-2 .nav-row .grow{min-width:0}
+      @media(max-width:560px){
+        #screen-1 .landing-content{padding-inline:2px}
+        #screen-1 .demo-file .doc{width:17px;height:21px}
+        #screen-1 .demo-file .fname{font-size:11px}
+        #screen-1 .demo-file .check{width:15px;height:15px;min-height:15px}
+        #screen-2 .way-card .way-tag{font-size:10px;letter-spacing:0;white-space:normal}
+        #screen-2 .way-card h3{font-size:15px}
+        #screen-2 .way-card p{font-size:12px}
+      }
+      @media(max-width:350px){#screen-2 .way-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#screen-1 .demo-file{gap:4px;padding:5px}#screen-1 .demo-file .doc{display:none}}
+      @media(max-height:510px){
+        #screen-1 .landing-content,#screen-2 .choose-content{padding-block:2px}
+        #screen-1 .landing .fine{font-size:11px}
+        #screen-1 .landing h1{font-size:clamp(24px,5.5vw,32px)}
+        #screen-1 .landing .lede{font-size:14px}
+        #screen-2 .choose h2{font-size:22px}
+        .app:has(#screen-1.active,#screen-2.active) .info-btn{width:36px;height:36px;min-height:36px}
+      }
+      /* In landscape, keep the live welcome illustration beside the copy. */
+      @media(min-width:650px) and (max-height:600px){
+        #screen-1 .landing{max-width:900px}
+        #screen-1 .landing-content{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:20px;align-items:center}
+        #screen-1 .landing h1,#screen-1 .landing .lede{grid-column:1}
+        #screen-1 .demo-card{grid-column:2;grid-row:1 / span 3;margin:0 auto}
+        #screen-1 .chips{grid-column:1}
+        #screen-1 .file-banner.show{grid-column:1 / -1;grid-row:4;width:100%}
+      }
+
+      /* Compact, viewport-safe Classic workspace. Size controls by height as well as width. */
+      .app:has(#screen-3.active){width:100%;max-width:none;min-width:0;height:100vh;height:100dvh;padding-inline:max(10px,env(safe-area-inset-left,0px));padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+      #screen-3 .studio{width:100%;min-width:0;grid-template-columns:minmax(0,41fr) minmax(0,59fr);gap:clamp(8px,1vw,14px)}
+      #screen-3 .panel{padding:clamp(10px,1vw,16px);overflow-x:hidden;overflow-y:auto;scrollbar-width:thin}
+      #screen-3 .panel>*{min-width:0;max-width:100%}
+      #screen-3 .panel h2{font-size:clamp(18px,1.35vw,22px);margin-bottom:6px}
+      #screen-3 label.field{font-size:11.5px;margin-bottom:4px}
+      #screen-3 .url-row input,#screen-3 .lang-dd-btn,#screen-3 select.premium{min-height:40px;font-size:14px;padding-block:7px}
+      #screen-3 .sel-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+      #screen-3 .btn-big{min-height:44px;margin-top:9px;font-size:15px;padding:8px 12px}
+      #screen-3 .video-box{margin-top:8px;padding:8px;gap:9px}
+      #screen-3 .thumb-wrap{width:clamp(130px,15vw,255px);max-width:100%}
+      #screen-3 .thumb-wrap.playing{width:min(100%,calc(25dvh * 16 / 9));max-width:450px}
+      #screen-3 .tx-tabs{margin-bottom:6px;padding:3px}
+      #screen-3 .tx-tab{font-size:13px;min-height:34px;padding:5px 4px}
+      #screen-3 .karaoke-tools{gap:5px;margin-bottom:6px}
+      #screen-3 .karaoke-tools .btn{font-size:12px;min-height:32px;padding:5px 9px}
+      #screen-3 #timing-quality{flex:1 1 160px;min-width:0;overflow-wrap:anywhere;line-height:1.3}
+      #screen-3 .tx-view{gap:8px;min-height:100px}
+      #screen-3 .tx-col textarea{font-size:clamp(13px,1vw,16px);line-height:1.6;white-space:pre;overflow:auto}
+      #screen-3 .karaoke-scroll{font-size:clamp(15px,1.12vw,19px);line-height:1.5;padding:6px;overflow-x:hidden;overflow-anchor:none;scrollbar-gutter:stable}
+      #screen-3 .karaoke-line{display:grid;grid-template-columns:minmax(0,100px) minmax(0,1fr);gap:5px;align-items:start;margin:0;padding:4px 3px;min-height:32px;box-sizing:border-box}
+      #screen-3 .karaoke-line small{font-size:10.5px;margin:0;line-height:1.35;align-self:center;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+      #screen-3 .karaoke-word{justify-self:start;max-width:100%;overflow-wrap:anywhere;font-weight:600}
+      #screen-3 .karaoke-word.active{font-weight:600;transition:none}
+      #screen-3 .karaoke-line.cue-current{background:var(--surface-2);border-radius:5px}
+      #screen-3 .listen-panel{margin-top:7px;padding:7px 9px;gap:8px;flex-wrap:wrap}
+      #screen-3 .listen-panel .lp-text{flex:1 1 145px}
+      #screen-3 .listen-panel h3{font-size:13px}
+      #screen-3 .listen-panel p,#screen-3 .route-note{font-size:11.5px;line-height:1.35}
+      #screen-3 .listen-panel .btn{max-width:100%;min-height:36px;padding:7px 10px;font-size:12px;white-space:normal}
+      #screen-3 .export-row{margin-top:7px;gap:5px;flex-wrap:wrap}
+      #screen-3 .export-row .btn{min-height:36px;max-width:100%;padding:6px 10px;font-size:12px;white-space:normal}
+      #screen-3 .api-connected{margin-top:7px;padding-top:6px;gap:6px}
+      #screen-3 .api-connected .btn{min-height:34px;padding:5px 9px;font-size:12px}
+      #screen-3 .api-connected .api-note{font-size:11.5px;overflow-wrap:anywhere}
+      #screen-3 .accuracy-row{margin-top:6px}
+      #screen-3 .studio-head{min-width:0;flex-wrap:wrap}
+      #screen-3 .status{max-height:60px;overflow:auto;overflow-wrap:anywhere}
+      #screen-3 .save-hint{display:none!important}
+      #screen-3 #timing-now{font-size:11px;line-height:1.3;color:var(--ink-3);margin-bottom:5px;flex:none;overflow-wrap:anywhere}
+      @media(max-height:760px){#screen-3 .thumb-wrap.playing{width:min(100%,calc(21dvh * 16 / 9))}#screen-3 .topbar{padding-top:3px}#screen-3 .panel{padding:9px 10px}#screen-3 .processing{padding:6px 8px;margin-top:6px}#screen-3 .listen-panel p{display:none}}
+      @media(max-width:760px){#screen-3 .studio{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,42fr) minmax(0,58fr)}#screen-3 .panel{padding:8px}#screen-3 .thumb-wrap{width:112px}#screen-3 .thumb-wrap.playing{width:min(100%,calc(18dvh * 16 / 9))}#screen-3 .karaoke-line{grid-template-columns:minmax(0,80px) minmax(0,1fr);padding:3px 2px}#screen-3 .karaoke-line small{font-size:10px}#screen-3 .listen-panel{flex-direction:row;text-align:left}#screen-3 .listen-panel .btn{width:auto}#screen-3 .tx-view{min-height:100px}#screen-3 .export-row .btn{font-size:11px;padding:5px 7px}#screen-3 .panel h2{font-size:17px}}
+      @media(max-width:430px){#screen-3 .karaoke-line{grid-template-columns:minmax(0,1fr);gap:1px}#screen-3 .karaoke-line small{font-size:10px}#screen-3 .karaoke-tools .hint{flex-basis:100%}}
+      @media(prefers-reduced-motion:reduce){#screen-3 .karaoke-word{transition:none}}
+
     </style>
   </head>
 
@@ -584,6 +714,7 @@
         <!-- ============ STEP 1 : LANDING ============ -->
         <section class="screen active" id="screen-1" aria-label="Welcome">
           <div class="landing">
+            <div class="landing-content">
             <h1>Any YouTube video,<br /><span class="accent">written out for you.</span></h1>
             <p class="lede">Paste a link and get the video&rsquo;s words as a transcript &mdash; word by word where timing is available, in the original language, plus the same words in English letters so you can read them aloud.</p>
             <div class="file-banner" id="file-banner" role="alert">
@@ -622,26 +753,30 @@
             <div class="chips">
               <span>Original language</span><span>English letters</span><span>Second by second</span><span>Any video</span>
             </div>
+            </div>
+            <div class="landing-actions">
             <button class="btn btn-red btn-start" id="start-btn" type="button">Start</button>
             <p class="fine">Three short steps. Nothing to install for the online way.</p>
+            </div>
           </div>
         </section>
 
         <!-- ============ STEP 2 : CHOOSE A WAY ============ -->
         <section class="screen" id="screen-2" aria-label="Choose how to transcribe">
           <div class="choose">
+            <div class="choose-content">
             <h2>How do you want to do it?</h2>
             <p class="sub">Pick one way. You can come back and change it any time.</p>
             <div class="way-grid" role="group" aria-label="Choose a way">
               <button class="way-card selected" id="way1-card" type="button" aria-pressed="true">
                 <span class="way-tag">Way 1 &middot; Recommended</span>
                 <h3>Online, with your API key</h3>
-                <p>Everything happens right here in the page &mdash; on any device, nothing to install, no terminal.</p>
+                <p>Connect your AI provider on any device. No installation.</p>
               </button>
               <button class="way-card" id="way2-card" type="button" aria-pressed="false">
                 <span class="way-tag local">Way 2 &middot; No key</span>
                 <h3>On your own computer</h3>
-                <p>No API key. Get the words from captions here, and use the free computer pack for videos with no captions.</p>
+                <p>No key. Use captions or the free computer pack for audio recognition.</p>
               </button>
             </div>
 
@@ -653,16 +788,16 @@
               </div>
               <div class="api-row" id="api-row">
                 <label class="sr-only" for="api-key">Paste your API key</label>
-                <input type="password" id="api-key" placeholder="Paste your API key here &mdash; it connects by itself" autocomplete="off" spellcheck="false" />
+                <input type="password" id="api-key" placeholder="Paste your API key" autocomplete="off" spellcheck="false" />
                 <button class="btn btn-dark" id="api-connect" type="button" style="display:none">Try again</button>
               </div>
-              <div class="hint" style="margin-top:4px"><label for="provider-choice">Provider</label> <select id="provider-choice" class="premium" style="min-height:30px;padding:3px 8px;max-width:100%"><option value="">Auto detect</option></select></div><p class="api-note">Just paste &mdash; no button to tap. The moment a full key lands here, the page finds its provider, fetches its models and picks the best one by itself, then takes you straight to Step 3. Groq, OpenAI, Google Gemini, DeepSeek, NVIDIA and more &mdash; one OpenRouter key opens models from 100+ providers. Your key stays in this tab only and is sent only to its own provider.</p>
+              <div class="hint" style="margin-top:4px"><label for="provider-choice">Provider</label> <select id="provider-choice" class="premium" style="min-height:30px;padding:3px 8px;max-width:100%"><option value="">Auto detect</option></select></div><p class="api-note connection-note">Paste your key to automatically find its provider, fetch compatible models and open Step 3. Supports Groq, OpenAI, Gemini, OpenRouter and more. Your key stays in this tab and is sent only to its provider, unless you approve a trusted helper request.</p>
               <div class="status" id="api-status" role="status" aria-live="polite"></div>
               <details style="margin-top:8px"><summary class="hint" style="cursor:pointer">Optional independent audio model (Deepgram)</summary><label class="field" for="dg-key">Deepgram API key</label><div class="api-row"><input type="password" id="dg-key" autocomplete="off" placeholder="Deepgram key"><button class="btn btn-ghost" type="button" id="dg-connect">Connect</button></div><p class="hint" id="dg-note">Optional second model family for files and local processing.</p></details>
               <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
                 <label class="field" for="worker-url">Online helper address &middot; optional</label>
                 <input type="url" id="worker-url" placeholder="https://your-worker.example.workers.dev" autocomplete="off" spellcheck="false" />
-                <p class="api-note">Paste your free worker&rsquo;s address once &mdash; it stays set while this page is open. <b style="color:var(--ink)">This can enable audio recognition from supported YouTube links</b>: the helper attempts to access the recording and send its audio to the selected provider. Setup steps are in the info panel (top right). Only supported, authorized and accessible recordings can be processed. Use a trusted HTTPS helper; it receives the provider key when you approve a link request.</p>
+                <p class="api-note helper-note">A trusted HTTPS helper enables audio recognition for supported, authorized YouTube links. It receives your provider key only when you approve a link request. See the information button for setup.</p>
                 <div class="status" id="worker-status" role="status" aria-live="polite"></div>
               </div>
             </div>
@@ -672,6 +807,7 @@
               <button class="btn btn-ghost pack-dl" type="button" style="margin-top:12px">Download the computer pack</button>
             </div>
 
+            </div>
             <div class="nav-row">
               <button class="btn btn-ghost" id="back-1" type="button">Back</button>
               <button class="btn btn-red grow" id="to-step3" type="button" disabled>Connect a key to continue</button>
@@ -782,8 +918,9 @@
 
             <div class="panel" aria-label="Transcript">
               <h2>Your transcript</h2>
-              <div class="karaoke-tools"><button class="btn btn-dark" id="karaoke-btn" type="button">▶ Play &amp; sing along</button><button class="btn btn-ghost" id="reference-btn" type="button">Align reference</button><span id="timing-quality" class="hint" role="status"></span><button class="btn btn-ghost" id="audit-btn" type="button" hidden>Audit</button></div>
+              <div class="karaoke-tools"><button class="btn btn-dark" id="karaoke-btn" type="button">▶ Play &amp; sing along</button><button class="btn btn-ghost" id="reference-btn" type="button">Align reference</button><span id="timing-quality" class="hint" role="status"></span><button class="btn btn-ghost" id="improve-timing-btn" type="button" hidden>Improve with audio</button><button class="btn btn-ghost" id="audit-btn" type="button" hidden>Audit</button></div>
               <div id="reference-panel" hidden><p class="hint">Paste the complete original-language lyrics or transcript from an authorized source, in performance order, including real repeats. Alignment uses existing timing anchors; inserted words are estimated.</p><textarea id="reference-text" rows="3" placeholder="Paste reference text here"></textarea><button type="button" class="btn btn-dark" id="reference-apply">Align to timeline</button></div>
+              <p id="timing-now" hidden aria-live="off"></p>
               <div class="tx-tabs" role="tablist" aria-label="Transcript view">
                 <button type="button" class="tx-tab" id="tab-side" role="tab" data-view="side" aria-selected="true">Side by side</button>
                 <button type="button" class="tx-tab" id="tab-original" role="tab" data-view="original" aria-selected="false">Original</button>
@@ -792,11 +929,11 @@
               <div class="tx-view" id="tx-view" data-view="side">
                 <div class="tx-col" id="tx-col-original">
                   <label class="field" for="transcript">Original</label>
-                  <textarea id="transcript" placeholder="The words will appear here with millisecond timestamps. ~ means estimated; a range means unresolved timing. You can also paste words here yourself." spellcheck="false"></textarea>
+                  <textarea id="transcript" wrap="off" placeholder="The words will appear here with millisecond timestamps. ~ means estimated; a range means unresolved timing. You can also paste words here yourself." spellcheck="false"></textarea>
                 </div>
                 <div class="tx-col" id="tx-col-english">
                   <label class="field" for="transcript-en">English letters</label>
-                  <textarea id="transcript-en" readonly placeholder="The same words and timings will appear here in English letters." spellcheck="false" style="background:var(--surface-2)"></textarea>
+                  <textarea id="transcript-en" wrap="off" readonly placeholder="The same words and timings will appear here in English letters." spellcheck="false" style="background:var(--surface-2)"></textarea>
                 </div>
               </div>
               <p class="hint" style="margin-top:8px">Already have the words in a file?
@@ -2465,43 +2602,57 @@ HONEST LIMITS
           });}).catch(function(e){setStatus(status2El,'warn','Video playback unavailable: '+e.message);throw e;});
         }
         function stopKaraoke(){
-          karaokeEpoch++;if(karaokeFrame)cancelAnimationFrame(karaokeFrame);karaokeFrame=0;karaoke=null;
+          karaokeEpoch++;if(karaokeFrame)cancelAnimationFrame(karaokeFrame);karaokeFrame=0;if(karaoke&&karaoke.observer)karaoke.observer.disconnect();karaoke=null;var now=$('timing-now');if(now){now.hidden=true;now.textContent='';}
           ['transcript','transcript-en'].forEach(function(id){var t=$(id),p=$(id+'-karaoke');if(t)t.style.display='';if(p)p.remove();});
           var b=$('karaoke-btn');if(b)b.textContent='▶ Play & sing along';
         }
         function startKaraoke(){
           if(karaoke){stopKaraoke();return;}
-          var words=currentTimeline(),buckets=secondBuckets().filter(b=>b.sec!=null);if(!words.length||(!state.videoId&&!lastAudioFile)){setStatus(status2El,'warn','Load matching audio or video and a timed transcript first.');return;}
+          var words=currentTimeline(),buckets=wordDisplayBuckets().filter(b=>b.sec!=null);if(!words.length||(!state.videoId&&!lastAudioFile)){setStatus(status2El,'warn','Load matching audio or video and a timed transcript first.');return;}
           var id=state.videoId,epoch=++karaokeEpoch;$('karaoke-btn').disabled=true;
           (lastAudioFile&&lastAudioVideo===id?playLocalAudio():playVideo()).then(function(p){
             if(state.videoId!==id||epoch!==karaokeEpoch)return;
             var columns=['transcript','transcript-en'].map(function(id,col){
               var t=$(id),box=document.createElement('div');box.className='karaoke-scroll';box.id=id+'-karaoke';t.style.display='none';t.after(box);
-              var nodes=buckets.map(function(b){var line=document.createElement('div');line.className='karaoke-line';var stamp=document.createElement('small');stamp.textContent=bucketStamp(b);line.appendChild(stamp);box.appendChild(line);
-                var span=document.createElement('span');span.className='karaoke-word'+(b.unresolved?' unresolved':'');span.textContent=col?englishWordsForBucket(b):b.words.join(' ');span.title=b.unresolved?'Phrase timing unresolved — no word-level spotlight':b.estimated?'Estimated word timing — not acoustically verified':'Source timing';span.onclick=function(){p.seekTo(b.sec,true);};line.appendChild(span);return span;});
-              return {box:box,nodes:nodes};
+              var nodes=buckets.map(function(b,i){var line=document.createElement('div');line.className='karaoke-line';line.dataset.wordIndex=i;var stamp=document.createElement('small');stamp.textContent=bucketStamp(b);line.appendChild(stamp);box.appendChild(line);
+                var span=document.createElement('span');span.className='karaoke-word'+(b.unresolved?' unresolved':'');span.dataset.wordIndex=i;span.textContent=col?englishWordsForBucket(b):b.words[0];span.title=b.unresolved?'Individual word time unknown — click to seek to the containing caption range':b.estimated?'Estimated word timing — not acoustically verified':'Source word timing';span.onclick=function(){p.seekTo(b.sec,true);};line.appendChild(span);return span;});
+              return {box:box,nodes:nodes,rows:nodes.map(n=>n.parentElement)};
             });
-            // Binary search only valid individual word observations. Unresolved phrases may overlap
-            // nearby valid observations, and must never mask an otherwise valid active word.
             var playable=buckets.map((b,i)=>({b,i})).filter(x=>!x.b.unresolved).sort((x,y)=>x.b.sec-y.b.sec);
-            karaoke={words:words,columns:columns,index:-1,past:0,lastScroll:-1,lastTime:null};$('karaoke-btn').textContent='Exit sing along';
+            var blocked=buckets.map((b,i)=>({b,i})).filter(x=>x.b.unresolved);
+            var now=$('timing-now');now.hidden=false;
+            karaoke={words:words,columns:columns,index:-1,lastScroll:-1,lastTime:null,dirty:true,view:null,cue:-1};$('karaoke-btn').textContent='Exit sing along';
+            // Match corresponding row heights (not scroll percentages), including wrapped scripts.
+            // The same lexical index always occupies the same vertical position in both columns.
+            function sizeRows(){var side=txViewEl.dataset.view==='side',visible=columns.filter(c=>c.box.clientWidth>0);visible.forEach(c=>c.rows.forEach(r=>r.style.minHeight=''));if(side&&visible.length===2){var heights=visible[0].rows.map((r,i)=>Math.max(32,r.offsetHeight,visible[1].rows[i].offsetHeight));visible.forEach(c=>c.rows.forEach((r,i)=>r.style.minHeight=heights[i]+'px'));}}
+            if(typeof ResizeObserver!=='undefined'){karaoke.observer=new ResizeObserver(()=>{if(karaoke&&epoch===karaokeEpoch)karaoke.dirty=true;});columns.forEach(c=>karaoke.observer.observe(c.box));}
             function tick(){if(!karaoke||epoch!==karaokeEpoch)return;var t;try{t=Number(p.getCurrentTime());}catch(e){t=NaN;}if(!Number.isFinite(t)){karaokeFrame=requestAnimationFrame(tick);return;}
               var lo=0,hi=playable.length;while(lo<hi){var m=(lo+hi)>>1;if(playable[m].b.sec<=t)lo=m+1;else hi=m;}
               var hit=playable[lo-1],active=hit&&t<hit.b.end?hit.i:-1;
-              var upcoming=playable[lo],scroll=active>=0?active:(upcoming&&upcoming.b.sec-t<=1.2?upcoming.i:-1);
-              var old=karaoke.index,seek=karaoke.lastTime!=null&&Math.abs(t-karaoke.lastTime)>.6;karaoke.lastTime=t;
-              if(active!==old||scroll!==karaoke.lastScroll||seek){columns.forEach(function(c){
+              // During unresolved ranges follow the caption location without falsely spotlighting an individual word.
+              var cue=active<0?blocked.find(x=>x.b.sec<=t&&t<x.b.end):null,cueIndex=cue?cue.i:-1;
+              var upcoming=playable[lo],scroll=active>=0?active:cueIndex>=0?cueIndex:(upcoming&&upcoming.b.sec-t<=1.2?upcoming.i:-1);
+              var old=karaoke.index,seek=karaoke.lastTime==null||Math.abs(t-karaoke.lastTime)>.6,changedView=karaoke.view!==txViewEl.dataset.view,resize=karaoke.dirty||changedView;karaoke.lastTime=t;
+              if(resize){karaoke.dirty=false;karaoke.view=txViewEl.dataset.view;sizeRows();}
+              if(active!==old||scroll!==karaoke.lastScroll||seek||resize||cueIndex!==karaoke.cue){columns.forEach(function(c){
                 if(old>=0){c.nodes[old].classList.remove('active');c.nodes[old].classList.toggle('sung',buckets[old].end<=t);}
-                if(seek){c.nodes.forEach((n,i)=>n.classList.toggle('sung',!buckets[i].unresolved&&buckets[i].end<=t&&i!==active));}
+                if(karaoke.cue>=0)c.rows[karaoke.cue].classList.remove('cue-current');
+                if(seek||resize)c.nodes.forEach((n,i)=>n.classList.toggle('sung',!buckets[i].unresolved&&buckets[i].end<=t&&i!==active));
                 if(active>=0){c.nodes[active].classList.remove('sung');c.nodes[active].classList.add('active');}
-                if(scroll>=0&&c.box.clientHeight){var rect=c.nodes[scroll].getBoundingClientRect(),base=c.box.getBoundingClientRect(),relative=rect.top-base.top;if(seek||relative<c.box.clientHeight*.15||relative>c.box.clientHeight*.65){var target=c.box.scrollTop+relative-c.box.clientHeight*.40;c.box.scrollTo({top:Math.max(0,target),behavior:seek?'instant':'smooth'});}}
-              });karaoke.index=active;karaoke.lastScroll=scroll;}
+                if(cueIndex>=0)c.rows[cueIndex].classList.add('cue-current');
+              });karaoke.index=active;karaoke.lastScroll=scroll;karaoke.cue=cueIndex;
+                now.textContent=active>=0?(buckets[active].estimated?'Estimated timing · ':'Word timing · ')+bucketStamp(buckets[active]):cue?'Caption range only · '+bucketStamp(cue.b)+' · use matching audio for word spotlight':'Between timed words';
+              }
+              // Drive both columns from the same row and clock. One bounded scroll update per frame;
+              // avoid competing smooth-scroll animations, especially on short words and seeks.
+              if(scroll>=0){var visible=columns.filter(c=>c.box.clientHeight>0);if(visible.length){var first=visible[0],row=first.rows[scroll],relative=row.getBoundingClientRect().top-first.box.getBoundingClientRect().top;var target=Math.max(0,Math.min(first.box.scrollHeight-first.box.clientHeight,first.box.scrollTop+relative-first.box.clientHeight*.38));var y=seek||resize?target:first.box.scrollTop+(target-first.box.scrollTop)*.24;visible.forEach(c=>{c.box.scrollTop=Math.max(0,Math.min(c.box.scrollHeight-c.box.clientHeight,y));});}}
               karaokeFrame=requestAnimationFrame(tick);
             }tick();
-          }).catch(function(){setStatus(status2El,'warn','Playback could not start. Use a playable matching audio file or an embeddable video.');}).finally(function(){$('karaoke-btn').disabled=false;});
+          }).catch(function(){stopKaraoke();setStatus(status2El,'warn','Playback could not start. Use a playable matching audio file or an embeddable video.');}).finally(function(){$('karaoke-btn').disabled=false;});
         }
         $('karaoke-btn').addEventListener('click',startKaraoke);
-        function updateTimingQuality(){var w=currentTimeline(),el=$('timing-quality');if(!el)return;var n=w.filter(t=>t.precision==='estimated').length,b=w.filter(t=>t.timingBlocked).length;el.textContent=!w.length?(transcriptEl.value.trim()?'Untimed text — audio alignment needed':''):(b?b+' words lack usable individual timing; spotlight skipped. ':'')+(n?n+' estimated (~). Use matching audio.':w.every(t=>t.precision==='word'||t.precision==='acoustic')?'Audio word timings (verify by listening)':'Caption timings — not audio verified');}
+        function updateTimingQuality(){var w=currentTimeline(),el=$('timing-quality');if(!el)return;var n=w.filter(t=>t.precision==='estimated').length,b=w.filter(t=>t.timingBlocked).length,unverified=w.some(t=>t.precision!=='word'&&t.precision!=='acoustic');el.textContent=!w.length?(transcriptEl.value.trim()?'Untimed text — audio alignment needed':''):(b?b+' words need audio timing. ':'')+(n?n+' estimated (~).':unverified?'Caption timings — not audio verified':'Audio word timings (verify by listening)');$('improve-timing-btn').hidden=!w.length||!unverified;}
+        $('improve-timing-btn').onclick=function(){if(lastAudioFile&&lastAudioVideo===state.videoId||localCaps||WORKER_URL&&ai.connected&&ai.audioModel){$('polish-btn').click();}else if(ai.connected&&ai.audioModel||dgKey){$('accuracy-level').value='maximum';$('accuracy-level').dispatchEvent(new Event('change'));$('audio-input').click();}else{setStatus(status2El,'warn','Connect an audio provider in Step 2, or use the computer package, then choose the matching recording.');}};
 
         function playLocalAudio(){var box=$('thumb-wrap');$('video-box').classList.add('show');$('preview-empty').style.display='none';var a=$('local-audio-player');if(!a){destroyPlayer();box.innerHTML='';box.classList.add('playing');a=document.createElement('audio');a.id='local-audio-player';a.controls=true;a.style.cssText='width:100%;max-width:100%;';a.src=lastAudioURL;box.appendChild(a);}return a.play().then(()=>({getCurrentTime:()=>a.currentTime,seekTo:t=>{a.currentTime=t;}}));}
         function rememberAudio(file){var a=$('local-audio-player');if(a){a.pause();a.remove();}if(lastAudioURL)URL.revokeObjectURL(lastAudioURL);lastAudioFile=file;lastAudioVideo=state.videoId;lastAudioURL=file?URL.createObjectURL(file):null;}
@@ -2587,7 +2738,7 @@ HONEST LIMITS
           }else if(WORKER_URL){
             el.textContent="Worker is set - captions come through your worker first. Connect a Groq, OpenAI or Gemini key in Step 2 and it can also transcribe links from their sound.";
           }else{
-            el.textContent="No audio helper set. A YouTube link can only return captions here. For accurate karaoke, choose the matching audio/video file or use your computer/helper. Caption timings are not audio-verified. ~ marks estimates; dense unresolved phrases have no word spotlight.";
+            el.textContent="No audio helper set. A YouTube link can only return captions here. For accurate karaoke, choose the matching audio/video file or use your computer/helper. Caption timings are not audio-verified. ~ marks estimates; shared ranges need matching audio for exact spotlight.";
           }
         }
         var apiStatusEl=$("api-status");
@@ -3010,7 +3161,7 @@ HONEST LIMITS
           return null;
         }
         function englishWordsForBucket(b){
-          var checked=enCheckedTextFor(b.sec);
+          var checked=b.unresolved?null:enCheckedTextFor(b.sec);
           if(checked!=null) return checked;
           return romanize(b.words.join(" ")).replace(/\s+/g," ").trim();
         }
@@ -4129,7 +4280,7 @@ async function classicDG(blob,key,lang){const q=new URLSearchParams({model:'nova
             if(words){
               /* Checked English lines win over a fresh romanization,
                  so the box shows the corrected words the check made. */
-              var checked=(p.sec!=null)? enCheckedTextFor(p.sec) : null;
+              var checked=(p.sec!=null&&p.end==null)? enCheckedTextFor(p.sec) : null;
               var rom=checked!=null? checked : romanize(words).replace(/\s+/g," ").trim();
               out.push((p.stamp?"["+p.stamp+"] ":"")+(rom||words));
             }
@@ -4177,7 +4328,7 @@ async function classicDG(blob,key,lang){const q=new URLSearchParams({model:'nova
             var sMax=src.scrollHeight-src.clientHeight, dMax=dst.scrollHeight-dst.clientHeight;
             if(sMax<=0 || dMax<=0) return;
             txSyncGuard=true;
-            dst.scrollTop=(src.scrollTop/sMax)*dMax;
+            dst.scrollTop=Math.min(dMax,src.scrollTop);
             requestAnimationFrame(function(){ txSyncGuard=false; });
           });
         }
@@ -4367,7 +4518,7 @@ async function classicDG(blob,key,lang){const q=new URLSearchParams({model:'nova
             }
             if(!list.length)return;
             var skip=0,overlap=previous&&(start<previous.end-.025||((e.rolling||previous.rolling)&&start<=previous.end+.15));
-            if(overlap&&e.precision!=='word'&&e.precision!=='acoustic'&&previous.precision!=='word'&&previous.precision!=='acoustic'){
+            if(overlap&&!e.timingBlocked&&!previous.timingBlocked&&e.precision!=='word'&&e.precision!=='acoustic'&&previous.precision!=='word'&&previous.precision!=='acoustic'){
               var old=out.slice(-80);
               for(var n=Math.min(old.length,list.length);n>=1;n--){
                 if(!list.slice(0,n).every((w,i)=>tokenKey(w.text)&&tokenKey(w.text)===tokenKey(old[old.length-n+i].text)))continue;
@@ -4385,7 +4536,7 @@ async function classicDG(blob,key,lang){const q=new URLSearchParams({model:'nova
               }
             }
             var from=out.length;fresh.forEach(function(w){out.push(w);});
-            previous={from:from,start:start,end:end,precision:e.precision,rolling:e.rolling};
+            previous={from:from,start:start,end:end,precision:e.precision,rolling:e.rolling,timingBlocked:e.timingBlocked};
           });return repairSequence(out);
         }
         function currentTimeline(){
@@ -4422,6 +4573,9 @@ async function classicDG(blob,key,lang){const q=new URLSearchParams({model:'nova
           });
           if(!buckets.length&&!state.entries.length){currentLines().forEach(function(line){var p=splitStamp(line);if(p.text)buckets.push({sec:null,words:[p.text],tokens:[]});});}
           return buckets;
+        }
+        function wordDisplayBuckets(){
+          return secondBuckets().flatMap(function(b){return b.sec==null||!b.unresolved||b.words.length<=1?[b]:b.words.map((word,i)=>({...b,words:[word],tokens:[b.tokens[i]]}));});
         }
         function fmtWordTime(sec){var ms=Math.max(0,Math.round(sec*1000));return fmtSec(Math.floor(ms/1000))+'.'+String(ms%1000).padStart(3,'0');}
         function bucketStamp(b){return (b.estimated?'~':'')+fmtWordTime(b.sec)+(b.unresolved?'–'+fmtWordTime(b.end):'');}
@@ -4526,7 +4680,7 @@ async function classicDG(blob,key,lang){const q=new URLSearchParams({model:'nova
         }
         /* Word-level millisecond timestamps; unresolved phrases use an explicit range. */
         function timedLines(useEnglishLetters){
-          return secondBuckets().map(function(b){
+          return wordDisplayBuckets().map(function(b){
             var words=b.words.join(" ");
             if(useEnglishLetters) words=englishWordsForBucket(b);
             return (b.sec==null?"":"["+bucketStamp(b)+"] ")+words;

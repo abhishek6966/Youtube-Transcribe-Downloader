@@ -20,7 +20,7 @@ with sync_playwright() as pw:
  cue['dur']=.08
  out=page.evaluate('c=>{let a=timingTest;a.state.entries=[c,...a.entriesFromWords([{word:"next",start:99.2,end:99.7}])];a.renderEntries();return {words:a.currentTimeline(),text:document.getElementById("transcript").value,srt:a.buildSrtFile(false)}}',cue)
  assert all(x['timingBlocked'] for x in out['words'][:8]) and out['words'][-1]['start']==99.2,out
- assert '[~01:39.000–01:39.080] one two three four five six seven eight' in out['text'],out
+ assert out['text'].splitlines()[:8]==['[~01:39.000–01:39.080] '+w for w in 'one two three four five six seven eight'.split()],out
  assert '00:01:39,000 --> 00:01:39,080' in out['srt'] and '00:01:39,200 --> 00:01:39,700' in out['srt']
  # A coarse cue's inferred timing must not shift a genuine later word anchor.
  out=page.evaluate('''()=>timingTest.orderedTimeline([{start:99,dur:4,text:'one two three four five six seven eight'},{start:100,dur:.5,text:'next',wt:[100],we:[100.5],precision:'word'}])''')

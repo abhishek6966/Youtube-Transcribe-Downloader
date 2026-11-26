@@ -24,11 +24,11 @@
 **Live website:** https://abhishek6966.github.io/Youtube-Transcribe-Downloader/  
 **Classic direct link:** https://abhishek6966.github.io/Youtube-Transcribe-Downloader/Transcript.html
 
-## Classic Precision 1.3 — pronunciation review and full-screen workspace
+## Classic Precision 1.4 — shared word spotlight and compact responsive workspace
 
-Step 3 now uses the available viewport width and height, with larger transcript and karaoke text, bigger video preview and unchanged welcome/connection steps. The document remains fixed; transcripts, compact panels and dialogs can scroll internally on smaller displays.
+Step 3 uses the available viewport with more compact controls, a bounded video preview, paired word rows and responsive panels. The document remains fixed; transcripts, panels and dialogs can scroll internally on short displays. Steps 1 and 2 retain their responsive layouts.
 
-<img src="docs/readme/fullscreen-workspace.webp" width="100%" alt="Full-viewport Classic workspace — deterministic simulated audio recognition test" />
+<img src="docs/readme/compact-spotlight.webp" width="100%" alt="Compact Classic workspace — synthetic timed-word playback fixture" />
 
 Maximum mode on the browser Groq/Deepgram audio-file route (with a compatible connected chat model) and the computer engine with Groq context review scans even agreed words for plausible phonetic confusions. It checks at most two candidates per chunk using fresh, unprompted recognition of the matching audio crop. A one-word substitution requires two distinct recognition routes, matching adjacent words and compatible word boundaries; unresolved suggestions remain in the audit. This is not a measurement of accuracy. The direct hosted helper and OpenAI Whisper route do not run this cropped context-review loop.
 
@@ -48,6 +48,8 @@ The **Vocabulary** button accepts up to 180 characters of known spellings in the
 
 <img src="docs/readme/studio-step-welcome.webp" width="100%" alt="Classic animated landing page" />
 <img src="docs/readme/studio-step-connect.webp" width="100%" alt="Classic provider connection screen" />
+
+The welcome and connection screens adapt to desktop, tablet, phone and landscape viewports. Start, Back and Continue stay visible; on short screens or when optional settings expand, only the content region scrolls. The main document remains fixed.
 <img src="docs/readme/studio-step-workspace.webp" width="100%" alt="Classic workspace; deterministic mock ASR example, not verified song lyrics" />
 
 ## Accuracy engine
@@ -103,7 +105,7 @@ Browser decoding supports files up to 200 MB and decoded audio up to one hour on
 
 <img src="docs/readme/karaoke-preview.gif" width="100%" alt="Illustrative synchronized word spotlight animation" />
 
-Play & Sing Along uses the playback clock from the matching uploaded media or the embedded YouTube player. Both transcript columns share one word timeline. Clicking a word seeks to its start; seeking, pause, and playback update the spotlight. Gaps without a timed word are not filled by a fabricated highlight. Each individual word now shows its millisecond timestamp. `~` indicates an estimate, not an audio-verified boundary. Dense or conflicting caption phrases with insufficient timing evidence are shown as an explicit time range and deliberately excluded from the individual-word spotlight. Real audio recognition and optional acoustic alignment can resolve these passages; a text-only model cannot establish the correct sound timing. SRT uses individual word intervals where available and retains unresolved phrases as ranges. Very short rolling WebVTT display snapshots are removed only when an adjacent cue corroborates the same text. The caption fetcher briefly prefers sources with distinct word offsets over coarse cues. In Maximum mode, the browser can recover unresolved word intervals when two additional audio observations agree on the complete word sequence and compatible timing. This is corroboration, not proof of exact alignment. Embedded playback and audio access depend on the video and browser.
+Play & Sing Along uses the playback clock from the matching uploaded media or the embedded YouTube player. Both transcript columns share one word timeline, lexical row indices, matched row heights and a common scroll position. Changing tabs or resizing remeasures the rows. Clicking a timed word seeks to its start; clicking an unresolved word seeks to the containing caption range. Seeking, pause and playback update the spotlight. Gaps without a timed word are not filled by a fabricated highlight. Each individual word now shows its millisecond timestamp. `~` indicates an estimate, not an audio-verified boundary. Dense or conflicting caption phrases with insufficient timing evidence are shown as separate word rows with the shared caption time range, not as a long line at one second. These rows are deliberately excluded from the individual-word spotlight; the player follows the range location and reports that individual word timing is unavailable. The Improve with audio button starts an audio recheck or opens the matching-media picker in Maximum mode. Real audio recognition and optional acoustic alignment can resolve these passages; a text-only model cannot establish the correct sound timing. TXT and on-screen transcripts use a separate row per timed word, including shared-range labels for unresolved words. SRT uses individual word intervals where available and retains unresolved phrases as ranges to avoid inventing boundaries. Very short rolling WebVTT display snapshots are removed only when an adjacent cue corroborates the same text. The caption fetcher briefly prefers sources with distinct word offsets over coarse cues. In Maximum mode, the browser can recover unresolved word intervals when two additional audio observations agree on the complete word sequence and compatible timing. This is corroboration, not proof of exact alignment. Embedded playback and audio access depend on the video and browser.
 
 ```mermaid
 sequenceDiagram

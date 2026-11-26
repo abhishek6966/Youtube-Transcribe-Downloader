@@ -10,3 +10,5 @@
 These are software tests, not live ASR accuracy benchmarks. Install Playwright and Chromium for browser tests.
 
 `python tests/test_phonetic_fullscreen.py` — validates synthetic mishearing, rejects unsupported substitutions, tests cropped recognition with simulated providers and real WAV decoding, vocabulary hint isolation and fixed viewport layout. No live speech accuracy measurement.
+
+`python tests/test_spotlight_responsive.py` — shared word rows, matching scroll and active index in both scripts, uncertain range handling, tab changes, fixed frame and control reachability across nine simulated browser viewport sizes.
