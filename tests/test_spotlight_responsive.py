@@ -28,7 +28,7 @@ with sync_playwright() as pw:
   for sel in ['#fetch-btn','#audio-btn','#dl-both','#dl-srt','#polish-btn','#clear-btn']:
    page.locator(sel).scroll_into_view_if_needed();r=page.locator(sel).bounding_box();assert r and r['x']>=-1 and r['y']>=-1 and r['x']+r['width']<=w+1 and r['y']+r['height']<=h+1,(w,h,sel,r)
   if (w,h)==(1366,768):
-   page.evaluate("document.querySelectorAll('#screen-3 .panel').forEach(p=>p.scrollTop=0)");page.wait_for_timeout(100);page.screenshot(path='/mnt/data/classic-compact-spotlight-preview.png',animations='disabled')
+   page.evaluate("document.querySelectorAll('#screen-3 .panel').forEach(p=>p.scrollTop=0)");page.wait_for_timeout(100);page.screenshot(path='/mnt/data/classic-compact-503-preview.png',animations='disabled')
   print(f'{w}x{h}: fixed frame, controls reachable',flush=True)
  assert not errs,errs;b.close()
 print('Word rows, repeated unresolved words, same active row, paired scroll, tab changes and viewport checks passed.')

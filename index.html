@@ -692,6 +692,46 @@
       @media(max-width:430px){#screen-3 .karaoke-line{grid-template-columns:minmax(0,1fr);gap:1px}#screen-3 .karaoke-line small{font-size:10px}#screen-3 .karaoke-tools .hint{flex-basis:100%}}
       @media(prefers-reduced-motion:reduce){#screen-3 .karaoke-word{transition:none}}
 
+
+      /* Step 3: centered, compact workspace; keep the original wizard and theme. */
+      .app:has(#screen-3.active){max-width:1220px;padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
+      .app:has(#screen-3.active) .topbar{padding:5px 2px 2px}
+      .app:has(#screen-3.active) .info-btn{width:34px;height:34px;min-height:34px}
+      #screen-3{padding:3px 0 10px}
+      #screen-3 .studio-head{gap:8px;padding-bottom:6px}
+      #screen-3 .btn-back{min-height:32px;padding:5px 12px;font-size:13px}
+      #screen-3 .studio-head .mode{font-size:12px}
+      #screen-3 .studio{grid-template-columns:minmax(0,44fr) minmax(0,56fr);gap:10px;max-height:720px;grid-template-rows:minmax(0,1fr)}
+      #screen-3 .panel{padding:11px;min-height:0;border-radius:14px}
+      #screen-3 .panel h2{font-size:18px;margin-bottom:7px}
+      #screen-3 .url-row input,#screen-3 .lang-dd-btn,#screen-3 select.premium{min-height:36px;font-size:13px;padding-block:6px}
+      #screen-3 .sel-row{gap:8px;margin-top:7px}
+      #screen-3 .btn-big{min-height:40px;font-size:14px;margin-top:8px}
+      #screen-3 .video-box{padding:7px;gap:8px;margin-top:7px}
+      #screen-3 .thumb-wrap{width:clamp(118px,16vw,216px)}
+      #screen-3 .thumb-wrap.playing{width:min(100%,calc(23dvh * 16 / 9),340px)}
+      #screen-3 .video-meta .vtitle{font-size:13px;line-height:1.3}
+      #screen-3 .video-meta .vauthor,#screen-3 .video-meta .vfacts,#screen-3 .video-meta .watch{font-size:11.5px}
+      #screen-3 .tx-tab{font-size:12.5px;min-height:30px}
+      #screen-3 .tx-col textarea{font-size:14px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+      #screen-3 .karaoke-scroll{font-size:16px;line-height:1.5}
+      #screen-3 .karaoke-line{min-height:29px;padding-block:3px}
+      #screen-3 .karaoke-tools .btn,#screen-3 .export-row .btn,#screen-3 .listen-panel .btn{min-height:32px;font-size:12px;padding:5px 9px}
+      #screen-3 .listen-panel{padding:7px 8px;gap:6px}
+      #screen-3 .listen-panel .lp-text{flex:1 1 140px}
+      #screen-3 .route-note,#screen-3 .api-connected .api-note,#screen-3 .listen-panel p{font-size:11.5px;line-height:1.35}
+      #screen-3 .accuracy-row{gap:6px;margin-top:6px}
+      #screen-3 #pronunciation-btn{min-height:32px;font-size:12px;padding:4px 8px}
+      #screen-3 .status{max-height:110px;padding:7px 26px 7px 9px;font-size:12px;line-height:1.4;margin-top:7px}
+      #screen-3 .status .linklike{font-size:inherit}
+      #screen-3 .fallback-detail{overflow-wrap:anywhere}
+      #screen-3 .fallback-detail details{margin:3px 0}
+      #screen-3 .fallback-detail summary{cursor:pointer;font-weight:700}
+      #screen-3 .processing{margin-top:7px;padding:7px 9px}
+      @media(min-width:761px) and (min-height:870px){#screen-3 .studio{flex:0 1 720px}#screen-3 .studio-head{margin-top:8px}}
+      @media(max-height:710px){#screen-3 .panel{padding:9px}#screen-3 .thumb-wrap.playing{width:min(100%,calc(20dvh * 16 / 9),300px)}#screen-3 .status{max-height:88px}}
+      @media(max-width:760px){.app:has(#screen-3.active){padding-inline:max(7px,env(safe-area-inset-left,0px))}#screen-3 .studio{max-height:none;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,43fr) minmax(0,57fr);gap:7px}#screen-3 .panel{padding:8px}#screen-3 .panel h2{font-size:17px}#screen-3 .thumb-wrap{width:112px}#screen-3 .thumb-wrap.playing{width:min(100%,calc(18dvh * 16 / 9))}#screen-3 .export-row .btn{font-size:11px;padding:5px 7px}#screen-3 .status{max-height:90px}}
+
     </style>
   </head>
 
@@ -2715,7 +2755,7 @@ HONEST LIMITS
           var controller=new AbortController(),timer=setTimeout(()=>controller.abort(),150000),d;
           try{
             var r=await fetch(base+(route==='interactions'?'/interactions':'/models/'+encodeURIComponent(model)+':generateContent'),{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body),signal:controller.signal});
-            if(!r.ok){var msg='';try{var errorBody=await r.json();msg=safeGeminiText(errorBody.error?.message||errorBody.message,key);}catch(_){}var e=Error('Gemini HTTP '+r.status);e.http=r.status;e.detail=msg;throw e;}
+            if(!r.ok){var msg='';try{var errorBody=await r.json();msg=safeGeminiText(errorBody.error?.message||errorBody.message,key);}catch(_){}var e=Error('Gemini HTTP '+r.status);e.http=r.status;e.detail=msg;var retry=r.headers.get('Retry-After');if(retry){var seconds=Number(retry);e.retryAfterMs=Math.max(0,Number.isFinite(seconds)?seconds*1000:(Date.parse(retry)||0)-Date.now());}throw e;}
             d=await r.json();
           }catch(e){if(e.name==='AbortError')throw Error('Gemini request timeout');throw e;}finally{clearTimeout(timer);}
           var result='';
@@ -2735,16 +2775,17 @@ HONEST LIMITS
           var models=geminiVideoModels(ai.models);if(models.includes(ai.audioModel))models=[ai.audioModel,...models.filter(m=>m!==ai.audioModel)];
           if(!models.length)throw Error('No compatible video model');
           var prompt='For this authorized recording, transcribe audible spoken or sung words in their original language, never translate. Return ONLY a JSON array of objects with word (one lexical word), start and end (seconds from the start of the video). Preserve actual sequence and repetitions. Do not use remembered lyrics, captions, descriptions or guesses. Omit unclear sounds rather than inventing words. Use estimated timestamps, preserve silence, and never place many words at one timestamp. '+(lang?'Requested language hint: '+lang+'. ':'')+'If you cannot hear or process the audio, return [].';
-          var attempts=[],last,plans=[];
-          // Prefer the current documented video URL interface. For a compatibility
-          // rejection only, try the legacy GenerateContent form once, then other
-          // catalog candidates. Never retry access, quota or content refusals.
-          models.slice(0,3).forEach((m,i)=>{plans.push([m,'interactions']);if(i===0)plans.push([m,'generateContent']);});
+          var attempts=[],last,plans=models.slice(0,3).map(m=>[m,'interactions']),maxAttempts=4,legacyTried=false,overloadRetry=null,transientCount=0;
+          // One bounded budget across both routes. On capacity errors, prefer a
+          // different model rather than immediately calling the overloaded model again.
+          // Only retry the last overloaded route once if alternatives are exhausted.
+          // Never retry quota, access or explicit content restrictions.
           function valid(){return state.videoId===id&&state.entries===original&&transcriptEl.value===txt&&ai===connection&&ai.key===key;}
-          for(var plan of plans){
+          while(plans.length&&attempts.length<maxAttempts){
             if(!valid())return false;
+            var plan=plans.shift();
             var model=plan[0],route=plan[1];
-            setStatus(statusEl,'info','Gemini video input: trying '+geminiHTML(model)+' ('+route+', '+(attempts.length+1)+'/'+plans.length+'). Word timing will be estimated.');
+            setStatus(statusEl,'info','Gemini video input: trying '+geminiHTML(model)+' ('+route+', '+(attempts.length+1)+'/'+maxAttempts+' max). Word timing will be estimated.');
             try{
               var result=await geminiVideoRequest(model,route,id,prompt,key);
               if(!valid())return false;
@@ -2757,9 +2798,23 @@ HONEST LIMITS
             }catch(e){
               if(!valid())return false;
               last=e;attempts.push({model,route,status:e.http||'invalid response',detail:safeGeminiText(e.detail,key)});
-              // Only retry compatibility errors, not permission, video availability,
-              // copyright, policy, quota, incomplete output or explicit refusals.
-              if(![400,404].includes(e.http)||/copyright|recitation|safety|policy|blocked|prohibited|permission|access denied|private|unlisted|age.restrict|not public|video.{0,30}(?:unavailable|not found)|quota|billing|region|api.key/i.test(e.detail||''))break;
+              // A policy/access refusal is terminal regardless of HTTP status.
+              if(/copyright|recitation|safety|policy|blocked|prohibited|permission|access denied|private|unlisted|age.restrict|not public|video.{0,30}(?:unavailable|not found)|quota|billing|region|api.key/i.test(e.detail||''))break;
+              if([400,404].includes(e.http)){
+                if(route==='interactions'&&!legacyTried){legacyTried=true;plans.unshift([model,'generateContent']);}
+                continue;
+              }
+              if(![500,502,503,504].includes(e.http))break;
+              transientCount++;
+              // Respect an explicit Retry-After: long cooldowns are surfaced rather
+              // than holding the UI open or sending more requests during the cooldown.
+              var delay=Math.max(Math.min(8000,1000*Math.pow(2,transientCount-1)),e.retryAfterMs||0);
+              if(delay>8000||attempts.length>=maxAttempts)break;
+              if(!plans.length&&!overloadRetry){overloadRetry=plan;plans.push(plan);}
+              if(!plans.length)break;
+              setStatus(statusEl,'info','Gemini '+geminiHTML(model)+' is temporarily unavailable (HTTP '+e.http+'). '+(plans[0][0]===model?'Retrying once':'Switching to '+geminiHTML(plans[0][0]))+' after a short pause…');
+              await new Promise(resolve=>setTimeout(resolve,delay));
+              if(!valid())return false;
             }
           }
           last=last||Error('No compatible video model');last.attempts=attempts;throw last;
@@ -2769,7 +2824,7 @@ HONEST LIMITS
           if(code===429)hint='Gemini returned HTTP 429: quota or rate limit reached. Check Google AI Studio quota.';
           else if(code===401||code===403)hint='Gemini returned HTTP '+code+': credentials, project permissions or video access were rejected.';
           else if(code===400||code===404)hint='Gemini returned HTTP '+code+': the available video model, request or public video was rejected.';
-          else if(code>=500)hint='Gemini returned HTTP '+code+': provider service error. Retry later or use matching media.';
+          else if(code>=500)hint='Gemini returned HTTP '+code+': temporary provider overload or service error. Available automatic retries could not complete the request. Retry later or use matching media.';
           else if(code)hint='Gemini returned HTTP '+code+'.';
           else if(/No compatible video model/i.test(message))hint='No supported general-purpose video model was found in your live Gemini catalog.';
           else if(/No timed result|Invalid or unordered|Incomplete provider|JSON|Unexpected token|Unexpected end/i.test(message))hint='Gemini did not return a complete, usable timed transcript. No words were fabricated.';
@@ -2779,7 +2834,7 @@ HONEST LIMITS
           return geminiHTML(hint+(attempts?' Attempts: '+attempts:err?.detail?' '+safeGeminiText(err.detail,ai.key):'')+' Use matching authorized media if the link cannot be processed.');
         }
         async function retryGeminiLink(){var id=state.videoId,btn=$('fetch-btn');if(!geminiLinkAvailable()||!id||btn.disabled)return;if(!confirm('Send the public video URL to Google Gemini? Continue only for content you have permission to process. Word times are estimates. Up to four compatible requests may be attempted.'))return;btn.disabled=true;startProcessing();setStatus(statusEl,'info','Gemini is processing the public video URL. Word times will be estimates.');try{var ok=await geminiLinkTranscript(id,(langSelect.value||'').trim().toLowerCase());if(!ok&&state.videoId===id)showNoCaptionFallback('The video or transcript changed during processing. Retry when ready.');}catch(e){if(state.videoId===id)showNoCaptionFallback(geminiFailureHint(e));}finally{btn.disabled=false;stopProcessing();}}
-        function showNoCaptionFallback(detail){var canListen=!!(localCaps||dgKey||ai.connected&&(ai.audioModel||geminiLinkAvailable()));setStatus(statusEl,'warn','No usable captions. The embedded YouTube player cannot send its sound to the AI. '+(canListen?'Choose the matching recording to generate new captions from audio, progressively where supported.':'Connect a listening model or use the computer package to recognize the matching recording.')+(detail?' <span class="fallback-detail">'+detail+'</span>':'')+' <button type="button" class="linklike" id="no-caption-audio">'+(canListen?'Choose matching media':'Connect listening AI')+'</button> · <button type="button" class="linklike" id="no-caption-helper">Configure trusted helper</button> · <button type="button" class="linklike" id="no-caption-gemini">'+(geminiLinkAvailable()?'Retry Gemini link':'Connect Gemini for link input')+'</button>');if(statusEl._statusTimer){clearTimeout(statusEl._statusTimer);statusEl._statusTimer=null;} $('no-caption-audio').onclick=function(){if(canListen)audioInput.click();else $('back-2').click();};$('no-caption-helper').onclick=function(){$('back-2').click();};$('no-caption-gemini').onclick=function(){if(geminiLinkAvailable())retryGeminiLink();else $('back-2').click();};if(canListen){$('audio-hint').style.display='';$('audio-hint').classList.add('drag');setTimeout(()=>{$('audio-hint').classList.remove('drag');},7000);}else showOfflineBox();}
+        function showNoCaptionFallback(detail){var canListen=!!(localCaps||dgKey||ai.connected&&(ai.audioModel||geminiLinkAvailable()));setStatus(statusEl,'warn','No usable captions. '+(canListen?'Use matching audio for acoustic timing.':'Connect a listening model or use the computer package.')+(detail?' <div class="fallback-detail">'+(detail.includes(' Attempts: ')?detail.split(' Attempts: ')[0]+'<details><summary>Provider attempts</summary>'+detail.split(' Attempts: ').slice(1).join(' Attempts: ')+'</details>':detail)+'</div>':' The embedded player cannot send its audio to AI. ')+' <button type="button" class="linklike" id="no-caption-audio">'+(canListen?'Choose matching media':'Connect listening AI')+'</button> · <button type="button" class="linklike" id="no-caption-helper">Configure trusted helper</button> · <button type="button" class="linklike" id="no-caption-gemini">'+(geminiLinkAvailable()?'Retry Gemini link':'Connect Gemini for link input')+'</button>');if(statusEl._statusTimer){clearTimeout(statusEl._statusTimer);statusEl._statusTimer=null;} $('no-caption-audio').onclick=function(){if(canListen)audioInput.click();else $('back-2').click();};$('no-caption-helper').onclick=function(){$('back-2').click();};$('no-caption-gemini').onclick=function(){if(geminiLinkAvailable())retryGeminiLink();else $('back-2').click();};if(canListen){$('audio-hint').style.display='';$('audio-hint').classList.add('drag');setTimeout(()=>{$('audio-hint').classList.remove('drag');},7000);}else showOfflineBox();}
 
         function rememberAudio(file){var a=$('local-audio-player');if(a){a.pause();a.remove();}if(lastAudioURL)URL.revokeObjectURL(lastAudioURL);lastAudioFile=file;lastAudioVideo=state.videoId;lastAudioURL=file?URL.createObjectURL(file):null;}
 
