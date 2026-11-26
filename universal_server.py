@@ -23,7 +23,7 @@ def settings(d):
     mode=d.get('mode','advanced');lang=d.get('language','')
     if mode not in ('fast','advanced','maximum'):raise ValueError('Invalid mode.')
     if lang and not re.fullmatch(r'[a-z]{2,3}(?:-[A-Za-z]{2,4})?',lang):raise ValueError('Invalid language code.')
-    result={'mode':mode,'language':lang,'local':bool(d.get('local',True)),'cache':bool(d.get('cache',False)),'context':bool(d.get('context',False)),'reference':str(d.get('reference',''))[:100000]}
+    result={'mode':mode,'language':lang,'local':bool(d.get('local',True)),'cache':bool(d.get('cache',False)),'context':bool(d.get('context',False)),'reference':str(d.get('reference',''))[:100000],'vocabulary':engine.vocabulary_hint(d.get('vocabulary',''))}
     for k in ('groq','deepgram'):
         v=str(d.get(k,'')).strip()
         if len(v)>512 or any(c in v for c in '\r\n'):raise ValueError('Invalid API key.')

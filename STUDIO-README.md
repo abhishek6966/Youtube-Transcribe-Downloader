@@ -24,6 +24,16 @@
 **Live website:** https://abhishek6966.github.io/Youtube-Transcribe-Downloader/  
 **Classic direct link:** https://abhishek6966.github.io/Youtube-Transcribe-Downloader/Transcript.html
 
+## Classic Precision 1.3 — pronunciation review and full-screen workspace
+
+Step 3 now uses the available viewport width and height, with larger transcript and karaoke text, bigger video preview and unchanged welcome/connection steps. The document remains fixed; transcripts, compact panels and dialogs can scroll internally on smaller displays.
+
+<img src="docs/readme/fullscreen-workspace.webp" width="100%" alt="Full-viewport Classic workspace — deterministic simulated audio recognition test" />
+
+Maximum mode on the browser Groq/Deepgram audio-file route (with a compatible connected chat model) and the computer engine with Groq context review scans even agreed words for plausible phonetic confusions. It checks at most two candidates per chunk using fresh, unprompted recognition of the matching audio crop. A one-word substitution requires two distinct recognition routes, matching adjacent words and compatible word boundaries; unresolved suggestions remain in the audit. This is not a measurement of accuracy. The direct hosted helper and OpenAI Whisper route do not run this cropped context-review loop.
+
+The **Vocabulary** button accepts up to 180 characters of known spellings in the source language. In Maximum mode, supported Groq / OpenAI Whisper audio routes, the trusted helper and local Whisper can run a separate hinted observation. Hinted recognition is deliberately excluded from automatic consensus; inspect the audit and use the editable transcript or authorized reference for confirmed corrections. No remote model weights are modified. Prompts may bias recognition and do not guarantee pronunciation accuracy. Caption-only results cannot verify the actual spoken or sung sound.
+
 ## Quick start
 
 <div align="center"><img src="docs/readme/three-step-tour.gif" alt="Actual Classic UI screenshots in a three-step slideshow; transcript uses a deterministic mock recognition fixture" width="100%" /></div>
@@ -93,7 +103,7 @@ Browser decoding supports files up to 200 MB and decoded audio up to one hour on
 
 <img src="docs/readme/karaoke-preview.gif" width="100%" alt="Illustrative synchronized word spotlight animation" />
 
-Play & Sing Along uses the playback clock from the matching uploaded media or the embedded YouTube player. Both transcript columns share one word timeline. Clicking a word seeks to its start; seeking, pause, and playback update the spotlight. Gaps without a timed word are not filled by a fabricated highlight. Estimated timings are shown as approximate. Embedded playback and audio access depend on the video and browser.
+Play & Sing Along uses the playback clock from the matching uploaded media or the embedded YouTube player. Both transcript columns share one word timeline. Clicking a word seeks to its start; seeking, pause, and playback update the spotlight. Gaps without a timed word are not filled by a fabricated highlight. Each individual word now shows its millisecond timestamp. `~` indicates an estimate, not an audio-verified boundary. Dense or conflicting caption phrases with insufficient timing evidence are shown as an explicit time range and deliberately excluded from the individual-word spotlight. Real audio recognition and optional acoustic alignment can resolve these passages; a text-only model cannot establish the correct sound timing. SRT uses individual word intervals where available and retains unresolved phrases as ranges. Very short rolling WebVTT display snapshots are removed only when an adjacent cue corroborates the same text. The caption fetcher briefly prefers sources with distinct word offsets over coarse cues. In Maximum mode, the browser can recover unresolved word intervals when two additional audio observations agree on the complete word sequence and compatible timing. This is corroboration, not proof of exact alignment. Embedded playback and audio access depend on the video and browser.
 
 ```mermaid
 sequenceDiagram
