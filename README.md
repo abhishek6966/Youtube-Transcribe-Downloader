@@ -24,7 +24,7 @@
 **Live website:** https://abhishek6966.github.io/Youtube-Transcribe-Downloader/  
 **Classic direct link:** https://abhishek6966.github.io/Youtube-Transcribe-Downloader/Transcript.html
 
-## Classic Precision 1.4 — shared word spotlight and compact responsive workspace
+## Classic Precision 1.6 — caption fallback, progressive audio recognition and synchronized playback
 
 Step 3 uses the available viewport with more compact controls, a bounded video preview, paired word rows and responsive panels. The document remains fixed; transcripts, panels and dialogs can scroll internally on short displays. Steps 1 and 2 retain their responsive layouts.
 
@@ -34,6 +34,40 @@ Maximum mode on the browser Groq/Deepgram audio-file route (with a compatible co
 
 The **Vocabulary** button accepts up to 180 characters of known spellings in the source language. In Maximum mode, supported Groq / OpenAI Whisper audio routes, the trusted helper and local Whisper can run a separate hinted observation. Hinted recognition is deliberately excluded from automatic consensus; inspect the audit and use the editable transcript or authorized reference for confirmed corrections. No remote model weights are modified. Prompts may bias recognition and do not guarantee pronunciation accuracy. Caption-only results cannot verify the actual spoken or sung sound.
 
+## When a video has no captions
+
+The embedded YouTube player does not expose audio samples to this page. A Groq key gives access to recognition models, not to YouTube audio. If caption retrieval fails, the app displays persistent actions rather than an automatically disappearing dead-end warning.
+
+| Route | Behavior |
+|---|---|
+| Groq / Deepgram + matching authorized audio or video file | Recognize overlapping audio chunks and populate both scripts as chunks finish. |
+| Computer + matching authorized recording | Local recognition with progressive job updates; optional installed models improve alignment. |
+| Connected Gemini + public YouTube URL | After consent, attempt direct video-input recognition using Google's supported YouTube URL input. Model-generated word times are explicitly estimated; availability and completeness depend on provider/model. |
+| Trusted deployed helper | Existing authorized audio-input route; provider response arrives as a batch. |
+| No usable source | Explain the limitation and offer the matching-media picker, provider connection or helper setup. |
+
+For a new file transcript, **Play as words arrive** attempts to play the supplied recording after the first recognized chunk, highlights the available words in both scripts, and pauses at the processed boundary until more audio is recognized. Browser autoplay restrictions may require a manual Play & sing along click. The player uses the supplied media, not a capture of the YouTube embed. Existing transcripts are replaced only after recognition succeeds, rather than progressively overwritten during rechecks. Processing uses bounded chunks, not instantaneous word streaming. If a chunk fails, the audit reports the missing interval; model agreement is not a measured accuracy score. Only process media you have permission to use and where the source/platform permits the processing. No automatic bypass of YouTube media access is added.
+
+```mermaid
+flowchart TD
+    A[Get transcript] --> B{Captions available?}
+    B -->|Yes| C[Caption timings and playback]
+    B -->|No| D{Authorized audio source available?}
+    D -->|Matching file| E[Overlapping audio chunks]
+    D -->|Configured trusted helper| F[Provider audio recognition]
+    D -->|Gemini connected| G[Consent and direct video URL input]
+    D -->|None| H[Choose matching media or connect provider]
+    E --> I[Publish processed word timeline]
+    I --> J[Play supplied media up to processed boundary]
+    I --> K[Original and romanized text]
+    G --> L[Estimated model-generated timings]
+    F --> K
+    L --> K
+    C --> K
+```
+
+See [Groq speech-to-text](https://console.groq.com/docs/speech-to-text) and [Gemini video URL input](https://ai.google.dev/gemini-api/docs/video-understanding#youtube). Live Gemini availability has not been verified with credentials in this release; the regression test checks the request and response handling with mock data.
+
 ## Quick start
 
 <div align="center"><img src="docs/readme/three-step-tour.gif" alt="Actual Classic UI screenshots in a three-step slideshow; transcript uses a deterministic mock recognition fixture" width="100%" /></div>
@@ -42,7 +76,7 @@ The **Vocabulary** button accepts up to 180 characters of known spellings in the
 |---|---|
 | 1 · Welcome | Open the live web app and press Start. |
 | 2 · Connect | Paste a recognized provider key, or select its provider if the key format is ambiguous. The app requests the provider's model catalog. Optional Deepgram connection uses a separate key and accessible project/model-list permissions. |
-| 3 · Transcribe | Choose the language (or Auto), accuracy mode, and matching file. A trusted deployed HTTPS helper can attempt YouTube audio processing; without audio access, a link returns captions only. |
+| 3 · Transcribe | Choose the language (or Auto), accuracy mode, and matching file. A trusted deployed HTTPS helper can attempt YouTube audio processing; without audio access, a link returns captions only unless a connected Gemini model accepts the direct video URL. |
 | Review | Inspect original text and English-letter pronunciation, listen to the actual recording, and use Check the words for an audio recheck when available. |
 | Export | Save TXT or SRT in both scripts, or export the available audit JSON. |
 
@@ -105,7 +139,7 @@ Browser decoding supports files up to 200 MB and decoded audio up to one hour on
 
 <img src="docs/readme/karaoke-preview.gif" width="100%" alt="Illustrative synchronized word spotlight animation" />
 
-Play & Sing Along uses the playback clock from the matching uploaded media or the embedded YouTube player. Both transcript columns share one word timeline, lexical row indices, matched row heights and a common scroll position. Changing tabs or resizing remeasures the rows. Clicking a timed word seeks to its start; clicking an unresolved word seeks to the containing caption range. Seeking, pause and playback update the spotlight. Gaps without a timed word are not filled by a fabricated highlight. Each individual word now shows its millisecond timestamp. `~` indicates an estimate, not an audio-verified boundary. Dense or conflicting caption phrases with insufficient timing evidence are shown as separate word rows with the shared caption time range, not as a long line at one second. These rows are deliberately excluded from the individual-word spotlight; the player follows the range location and reports that individual word timing is unavailable. The Improve with audio button starts an audio recheck or opens the matching-media picker in Maximum mode. Real audio recognition and optional acoustic alignment can resolve these passages; a text-only model cannot establish the correct sound timing. TXT and on-screen transcripts use a separate row per timed word, including shared-range labels for unresolved words. SRT uses individual word intervals where available and retains unresolved phrases as ranges to avoid inventing boundaries. Very short rolling WebVTT display snapshots are removed only when an adjacent cue corroborates the same text. The caption fetcher briefly prefers sources with distinct word offsets over coarse cues. In Maximum mode, the browser can recover unresolved word intervals when two additional audio observations agree on the complete word sequence and compatible timing. This is corroboration, not proof of exact alignment. Embedded playback and audio access depend on the video and browser.
+Play & Sing Along uses the playback clock from the matching uploaded media or the embedded YouTube player. Both transcript columns share one word timeline, lexical row indices, matched row heights and a common scroll position. Changing tabs or resizing remeasures the rows. Clicking a timed word seeks to its start; clicking a shared-range word seeks to its approximate playback position when available, otherwise to the containing caption range. Seeking, pause and playback update the spotlight. Gaps without a timed word are not filled by a fabricated highlight. Each individual word now shows its millisecond timestamp. `~` indicates an estimate, not an audio-verified boundary. Dense or conflicting caption phrases with insufficient timing evidence are shown as separate word rows with the shared caption time range, not as a long line at one second. These rows now receive a sequential, explicitly approximate playback-only spotlight when their shared range has enough room. During playback the row shows an estimated individual start time with a tilde, and its tooltip retains the original range. The estimate stays inside the caption range and does not displace adjacent individually timed words. Very short or conflicting intervals remain range-only. The original timestamp evidence and exports are unchanged. The Improve with audio button starts an audio recheck or opens the matching-media picker in Maximum mode. Real audio recognition and optional acoustic alignment can resolve these passages; a text-only model cannot establish the correct sound timing. TXT and on-screen transcripts use a separate row per timed word, including shared-range labels for unresolved words. SRT uses individual word intervals where available and retains unresolved phrases as ranges to avoid inventing boundaries. Very short rolling WebVTT display snapshots are removed only when an adjacent cue corroborates the same text. The caption fetcher briefly prefers sources with distinct word offsets over coarse cues. In Maximum mode, the browser can recover unresolved word intervals when two additional audio observations agree on the complete word sequence and compatible timing. This is corroboration, not proof of exact alignment. Embedded playback and audio access depend on the video and browser.
 
 ```mermaid
 sequenceDiagram
@@ -161,7 +195,7 @@ flowchart LR
     H --> I
 ```
 
-Run `python tests/test_universal.py`, `python tests/test_local_service.py`, `python tests/test_timeline_browser.py`, and `python tests/test_classic_sequence.py`. Browser tests require Playwright and Chromium. `benchmark.py` measures errors against supplied human-annotated ground truth. The tests exercise sequence preservation, timed repetitions, boundary recovery, timing repair, mock recognition with real WAV decoding, karaoke playback logic, and local service access. They do not establish live recognition accuracy on songs. Optional models and Windows launchers have not been exercised end-to-end in this build environment.
+Run `python tests/test_universal.py`, `python tests/test_local_service.py`, `python tests/test_timeline_browser.py`, and `python tests/test_classic_sequence.py`. Run `python tests/test_progressive_audio.py` for progressive playback, fallback actions and simulated Gemini link input. Browser tests require Playwright and Chromium. `benchmark.py` measures errors against supplied human-annotated ground truth. The tests exercise sequence preservation, timed repetitions, boundary recovery, timing repair, mock recognition with real WAV decoding, karaoke playback logic, and local service access. They do not establish live recognition accuracy on songs. Optional models and Windows launchers have not been exercised end-to-end in this build environment.
 
 **Accuracy limits:** no ASR model guarantees perfect lyrics for every recording or language. Captions can be inaccurate, recognition models can share mistakes, and estimated timings cannot be represented as acoustic truth. Use the exact authorized recording, Maximum mode, and human review of unresolved words for critical karaoke results. No measured accuracy percentage is claimed without independent ground truth.
 

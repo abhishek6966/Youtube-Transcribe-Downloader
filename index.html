@@ -669,7 +669,8 @@
       #screen-3 .karaoke-line{display:grid;grid-template-columns:minmax(0,100px) minmax(0,1fr);gap:5px;align-items:start;margin:0;padding:4px 3px;min-height:32px;box-sizing:border-box}
       #screen-3 .karaoke-line small{font-size:10.5px;margin:0;line-height:1.35;align-self:center;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
       #screen-3 .karaoke-word{justify-self:start;max-width:100%;overflow-wrap:anywhere;font-weight:600}
-      #screen-3 .karaoke-word.active{font-weight:600;transition:none}
+      #screen-3 .karaoke-word.active{font-weight:600;transition:none;color:white}
+      #screen-3 .karaoke-word.unresolved.active{color:white;text-decoration-color:white}
       #screen-3 .karaoke-line.cue-current{background:var(--surface-2);border-radius:5px}
       #screen-3 .listen-panel{margin-top:7px;padding:7px 9px;gap:8px;flex-wrap:wrap}
       #screen-3 .listen-panel .lp-text{flex:1 1 145px}
@@ -943,9 +944,9 @@
               <div class="listen-panel" id="audio-hint" style="display:none">
                 <div class="lp-text">
                   <h3>Audio accuracy: let <span id="audio-provider">your provider</span> listen</h3>
-                  <p>Choose or drop the matching recording. <span id="audio-provider-2">The provider</span> listens to the actual words and their timings. <span id="audio-limit">Up to 25 MB.</span></p>
+                  <p>Choose or drop the matching recording you may process. <span id="audio-provider-2">The provider</span> listens to the actual words and their timings. Groq/Deepgram and local file routes update progressively. <span id="audio-limit">Up to 25 MB.</span></p>
                 </div>
-                <button type="button" class="btn btn-dark" id="audio-btn">Choose a sound or video file</button>
+                <div style="display:flex;flex-direction:column;gap:5px;min-width:0"><button type="button" class="btn btn-dark" id="audio-btn">Choose a sound or video file</button><label class="hint" style="margin:0;display:flex;align-items:center;gap:5px"><input id="play-progressive" type="checkbox" checked> Play as words arrive</label></div>
                 <input type="file" id="audio-input" class="sr-only" accept="audio/*,video/*,.mp3,.m4a,.wav,.ogg,.webm,.mp4,.mov" />
               </div>
               <div class="export-row">
@@ -2606,20 +2607,47 @@ HONEST LIMITS
           ['transcript','transcript-en'].forEach(function(id){var t=$(id),p=$(id+'-karaoke');if(t)t.style.display='';if(p)p.remove();});
           var b=$('karaoke-btn');if(b)b.textContent='▶ Play & sing along';
         }
-        function startKaraoke(){
+        // Playback-only estimates: retain the original caption evidence and exports unchanged.
+        // Distribute each shared range in lexical order, bounded by adjacent timed words.
+        function spotlightSchedule(buckets){
+          var schedule=new Array(buckets.length).fill(null),nextTimed=new Array(buckets.length),next=Infinity,cursor=0;
+          for(var i=buckets.length-1;i>=0;i--){nextTimed[i]=next;var b=buckets[i];if(!b.unresolved&&Number.isFinite(b.sec)&&b.end>b.sec)next=b.sec;}
+          for(var i=0;i<buckets.length;){
+            var b=buckets[i];
+            if(!b.unresolved){if(Number.isFinite(b.sec)&&b.end>b.sec){schedule[i]={b:b,i:i};cursor=Math.max(cursor,b.end);}i++;continue;}
+            var j=i+1;
+            while(j<buckets.length&&buckets[j].unresolved&&Math.abs(buckets[j].sec-b.sec)<.001&&Math.abs(buckets[j].end-b.end)<.001)j++;
+            var a=Math.max(0,cursor,b.sec),end=Math.min(b.end,nextTimed[i]);
+            // Reserve the following distinct caption range where it has a later start.
+            if(j<buckets.length&&buckets[j].unresolved&&buckets[j].sec>b.sec)end=Math.min(end,buckets[j].sec);
+            var count=j-i,span=end-a;
+            // A transient display snapshot cannot honestly provide a usable spotlight.
+            // Do not race through eight words in 80 ms or borrow instrumental time.
+            if(Number.isFinite(span)&&span/count>=.06){
+              var step=span/count;
+              for(var k=i;k<j;k++)schedule[k]={i:k,b:{...buckets[k],sec:a+step*(k-i),end:k===j-1?end:a+step*(k-i+1),fallback:true,estimated:true}};
+              cursor=end;
+            }
+            i=j;
+          }
+          return schedule;
+        }
+        function startKaraoke(preservePlayback){
+          preservePlayback=preservePlayback===true;
           if(karaoke){stopKaraoke();return;}
           var words=currentTimeline(),buckets=wordDisplayBuckets().filter(b=>b.sec!=null);if(!words.length||(!state.videoId&&!lastAudioFile)){setStatus(status2El,'warn','Load matching audio or video and a timed transcript first.');return;}
           var id=state.videoId,epoch=++karaokeEpoch;$('karaoke-btn').disabled=true;
-          (lastAudioFile&&lastAudioVideo===id?playLocalAudio():playVideo()).then(function(p){
+          (lastAudioFile&&lastAudioVideo===id?playLocalAudio(preservePlayback):playVideo()).then(function(p){
             if(state.videoId!==id||epoch!==karaokeEpoch)return;
+            var schedule=spotlightSchedule(buckets);
             var columns=['transcript','transcript-en'].map(function(id,col){
               var t=$(id),box=document.createElement('div');box.className='karaoke-scroll';box.id=id+'-karaoke';t.style.display='none';t.after(box);
-              var nodes=buckets.map(function(b,i){var line=document.createElement('div');line.className='karaoke-line';line.dataset.wordIndex=i;var stamp=document.createElement('small');stamp.textContent=bucketStamp(b);line.appendChild(stamp);box.appendChild(line);
-                var span=document.createElement('span');span.className='karaoke-word'+(b.unresolved?' unresolved':'');span.dataset.wordIndex=i;span.textContent=col?englishWordsForBucket(b):b.words[0];span.title=b.unresolved?'Individual word time unknown — click to seek to the containing caption range':b.estimated?'Estimated word timing — not acoustically verified':'Source word timing';span.onclick=function(){p.seekTo(b.sec,true);};line.appendChild(span);return span;});
+              var nodes=buckets.map(function(b,i){var line=document.createElement('div');line.className='karaoke-line';line.dataset.wordIndex=i;var stamp=document.createElement('small');stamp.textContent=schedule[i]&&schedule[i].b.fallback?'~'+fmtWordTime(schedule[i].b.sec):bucketStamp(b);if(schedule[i]&&schedule[i].b.fallback)stamp.title='Playback estimate from original caption range '+bucketStamp(b);line.appendChild(stamp);box.appendChild(line);
+                var span=document.createElement('span');span.className='karaoke-word'+(b.unresolved?' unresolved':'');span.dataset.wordIndex=i;span.textContent=col?englishWordsForBucket(b):b.words[0];span.title=b.unresolved?(schedule[i]?'Approximate spotlight within shared caption range; not acoustically verified':'No usable individual interval — click to seek to the caption range'):b.estimated?'Estimated word timing — not acoustically verified':'Source word timing';span.onclick=function(){p.seekTo(schedule[i]?schedule[i].b.sec:b.sec,true);};line.appendChild(span);return span;});
               return {box:box,nodes:nodes,rows:nodes.map(n=>n.parentElement)};
             });
-            var playable=buckets.map((b,i)=>({b,i})).filter(x=>!x.b.unresolved).sort((x,y)=>x.b.sec-y.b.sec);
-            var blocked=buckets.map((b,i)=>({b,i})).filter(x=>x.b.unresolved);
+            var playable=schedule.filter(Boolean).sort((x,y)=>x.b.sec-y.b.sec);
+            var blocked=buckets.map((b,i)=>({b,i})).filter(x=>x.b.unresolved&&!schedule[x.i]);
             var now=$('timing-now');now.hidden=false;
             karaoke={words:words,columns:columns,index:-1,lastScroll:-1,lastTime:null,dirty:true,view:null,cue:-1};$('karaoke-btn').textContent='Exit sing along';
             // Match corresponding row heights (not scroll percentages), including wrapped scripts.
@@ -2629,19 +2657,19 @@ HONEST LIMITS
             function tick(){if(!karaoke||epoch!==karaokeEpoch)return;var t;try{t=Number(p.getCurrentTime());}catch(e){t=NaN;}if(!Number.isFinite(t)){karaokeFrame=requestAnimationFrame(tick);return;}
               var lo=0,hi=playable.length;while(lo<hi){var m=(lo+hi)>>1;if(playable[m].b.sec<=t)lo=m+1;else hi=m;}
               var hit=playable[lo-1],active=hit&&t<hit.b.end?hit.i:-1;
-              // During unresolved ranges follow the caption location without falsely spotlighting an individual word.
+              // Follow the range if there was not enough room for a usable estimate.
               var cue=active<0?blocked.find(x=>x.b.sec<=t&&t<x.b.end):null,cueIndex=cue?cue.i:-1;
               var upcoming=playable[lo],scroll=active>=0?active:cueIndex>=0?cueIndex:(upcoming&&upcoming.b.sec-t<=1.2?upcoming.i:-1);
               var old=karaoke.index,seek=karaoke.lastTime==null||Math.abs(t-karaoke.lastTime)>.6,changedView=karaoke.view!==txViewEl.dataset.view,resize=karaoke.dirty||changedView;karaoke.lastTime=t;
               if(resize){karaoke.dirty=false;karaoke.view=txViewEl.dataset.view;sizeRows();}
               if(active!==old||scroll!==karaoke.lastScroll||seek||resize||cueIndex!==karaoke.cue){columns.forEach(function(c){
-                if(old>=0){c.nodes[old].classList.remove('active');c.nodes[old].classList.toggle('sung',buckets[old].end<=t);}
+                if(old>=0){c.nodes[old].classList.remove('active');c.nodes[old].classList.toggle('sung',!!schedule[old]&&schedule[old].b.end<=t);}
                 if(karaoke.cue>=0)c.rows[karaoke.cue].classList.remove('cue-current');
-                if(seek||resize)c.nodes.forEach((n,i)=>n.classList.toggle('sung',!buckets[i].unresolved&&buckets[i].end<=t&&i!==active));
+                if(seek||resize)c.nodes.forEach((n,i)=>n.classList.toggle('sung',!!schedule[i]&&schedule[i].b.end<=t&&i!==active));
                 if(active>=0){c.nodes[active].classList.remove('sung');c.nodes[active].classList.add('active');}
                 if(cueIndex>=0)c.rows[cueIndex].classList.add('cue-current');
               });karaoke.index=active;karaoke.lastScroll=scroll;karaoke.cue=cueIndex;
-                now.textContent=active>=0?(buckets[active].estimated?'Estimated timing · ':'Word timing · ')+bucketStamp(buckets[active]):cue?'Caption range only · '+bucketStamp(cue.b)+' · use matching audio for word spotlight':'Between timed words';
+                now.textContent=active>=0?(hit.b.fallback?'Approximate spotlight · ~'+fmtWordTime(hit.b.sec): (hit.b.estimated?'Estimated timing · ':'Word timing · ')+bucketStamp(hit.b)):cue?'Caption range only · '+bucketStamp(cue.b)+' · too short or conflicting for a usable estimate':'Between timed words';
               }
               // Drive both columns from the same row and clock. One bounded scroll update per frame;
               // avoid competing smooth-scroll animations, especially on short words and seeks.
@@ -2651,10 +2679,29 @@ HONEST LIMITS
           }).catch(function(){stopKaraoke();setStatus(status2El,'warn','Playback could not start. Use a playable matching audio file or an embeddable video.');}).finally(function(){$('karaoke-btn').disabled=false;});
         }
         $('karaoke-btn').addEventListener('click',startKaraoke);
-        function updateTimingQuality(){var w=currentTimeline(),el=$('timing-quality');if(!el)return;var n=w.filter(t=>t.precision==='estimated').length,b=w.filter(t=>t.timingBlocked).length,unverified=w.some(t=>t.precision!=='word'&&t.precision!=='acoustic');el.textContent=!w.length?(transcriptEl.value.trim()?'Untimed text — audio alignment needed':''):(b?b+' words need audio timing. ':'')+(n?n+' estimated (~).':unverified?'Caption timings — not audio verified':'Audio word timings (verify by listening)');$('improve-timing-btn').hidden=!w.length||!unverified;}
+        function updateTimingQuality(){var w=currentTimeline(),el=$('timing-quality');if(!el)return;var n=w.filter(t=>t.precision==='estimated').length,b=w.filter(t=>t.timingBlocked).length,unverified=w.some(t=>t.precision!=='word'&&t.precision!=='acoustic');el.textContent=!w.length?(transcriptEl.value.trim()?'Untimed text — audio alignment needed':''):(b?b+' shared-range words; spotlight estimates where possible. ':'')+(n?n+' estimated (~).':unverified?'Caption timings — not audio verified':'Audio word timings (verify by listening)');$('improve-timing-btn').hidden=!w.length||!unverified;}
         $('improve-timing-btn').onclick=function(){if(lastAudioFile&&lastAudioVideo===state.videoId||localCaps||WORKER_URL&&ai.connected&&ai.audioModel){$('polish-btn').click();}else if(ai.connected&&ai.audioModel||dgKey){$('accuracy-level').value='maximum';$('accuracy-level').dispatchEvent(new Event('change'));$('audio-input').click();}else{setStatus(status2El,'warn','Connect an audio provider in Step 2, or use the computer package, then choose the matching recording.');}};
 
-        function playLocalAudio(){var box=$('thumb-wrap');$('video-box').classList.add('show');$('preview-empty').style.display='none';var a=$('local-audio-player');if(!a){destroyPlayer();box.innerHTML='';box.classList.add('playing');a=document.createElement('audio');a.id='local-audio-player';a.controls=true;a.style.cssText='width:100%;max-width:100%;';a.src=lastAudioURL;box.appendChild(a);}return a.play().then(()=>({getCurrentTime:()=>a.currentTime,seekTo:t=>{a.currentTime=t;}}));}
+        function playLocalAudio(preservePlayback){var box=$('thumb-wrap');$('video-box').classList.add('show');$('preview-empty').style.display='none';var a=$('local-audio-player');if(!a){destroyPlayer();box.innerHTML='';box.classList.add('playing');a=document.createElement(lastAudioFile&&String(lastAudioFile.type).startsWith('video/')?'video':'audio');a.id='local-audio-player';a.controls=true;a.playsInline=true;a.style.cssText='width:100%;max-width:100%;max-height:100%;object-fit:contain';a.src=lastAudioURL;box.appendChild(a);a.addEventListener('timeupdate',function(){guardProgressivePlayback(a);});a.addEventListener('seeking',function(){guardProgressivePlayback(a);});a.addEventListener('play',function(){guardProgressivePlayback(a);});}var adapter={getCurrentTime:()=>a.currentTime,seekTo:t=>{a.currentTime=t;}};return preservePlayback?Promise.resolve(adapter):a.play().then(()=>adapter);}
+        // Only play media supplied by the user. Caption-only embeds are not audio inputs.
+        function guardProgressivePlayback(a){var q=progressiveSession;if(!q||q.file!==lastAudioFile||!q.published)return;if(a.currentTime>=q.frontier-.04&&q.frontier<q.duration-.04){if(!a.paused){q.waiting=true;a.pause();}if(a.currentTime>q.frontier)a.currentTime=q.frontier;}}
+        function beginProgressive(file){var q={file:file,id:state.videoId,entries:state.entries,text:transcriptEl.value,eligible:!transcriptEl.value.trim()&&!!file,published:false,frontier:0,duration:Infinity,waiting:false,auto:!!$('play-progressive').checked};progressiveSession=q;return q;}
+        function progressValid(q){return progressiveSession===q&&state.videoId===q.id&&state.entries===q.entries&&transcriptEl.value===q.text;}
+        function publishProgressive(q,words,frontier,duration){if(!progressValid(q)||!q.eligible||!words.length)return;var active=!!karaoke,first=!q.published;q.frontier=frontier;q.duration=duration;if(first){rememberAudio(q.file);q.published=true;}state.entries=entriesFromWords(repairSequence(words));state.enChecked=null;state.wordsChecked=false;lastReport=null;$('audit-btn').hidden=true;renderEntries();q.entries=state.entries;q.text=transcriptEl.value;
+          // Rebuild both synchronized columns without restarting or unpausing the existing player.
+          if(active&&q.file)startKaraoke(true);else if(first&&q.auto&&q.file)startKaraoke();
+          var a=$('local-audio-player');if(q.waiting&&a&&a.currentTime<frontier-.04){q.waiting=false;a.play().catch(()=>{});}
+          setStatus(status2El,'info','Audio recognition in progress: '+fmtSec(frontier)+' / '+fmtSec(duration)+' processed. Both columns update as chunks finish. '+(q.file?'Playback waits at the processed boundary.':'Play the source after recognition for best synchronization.')+'');
+        }
+        function finishProgressive(q){if(progressiveSession!==q)return;progressiveSession=null;var a=$('local-audio-player');if(q.complete&&q.waiting&&a&&q.published)a.play().catch(()=>{});}
+        function commitProgressive(q,words){q.complete=true;var active=!!karaoke;if(!q.published)rememberAudio(q.file||null);state.entries=entriesFromWords(repairSequence(words));state.enChecked=null;state.wordsChecked=false;renderEntries();if(active&&q.published&&q.file)startKaraoke(true);}
+        // Google Gemini's documented public YouTube URL input is a separate provider route.
+        // The model supplies estimated timestamps, not ASR acoustic word boundaries.
+        function geminiLinkAvailable(){return !!($('way1-card').getAttribute('aria-pressed')==='true'&&ai.connected&&ai.provider&&ai.provider.type==='gemini'&&(ai.audioModel||ai.chatModel));}
+        function parseGeminiLinkWords(text,duration){var data=JSON.parse(String(text).trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'')),words=Array.isArray(data)?data:data.words;if(!Array.isArray(words)||!words.length||words.length>20000)throw Error('No timed result');var out=[],prev=-1;for(var w of words){var a=w.start,b=w.end,t=typeof w.word==='string'?w.word.trim():'';if(typeof a!=='number'||typeof b!=='number'||!Number.isFinite(a)||!Number.isFinite(b)||a<0||b<=a||a<prev||!t||t.length>160||/\s/u.test(t)||(duration>0&&b>duration+1))throw Error('Invalid or unordered estimated timings');prev=a;out.push({word:t,start:a,end:b,precision:'estimated',estimated:true});}return repairSequence(out);}
+        async function geminiLinkTranscript(id,lang){var original=state.entries,txt=transcriptEl.value,key=ai.key,model=ai.audioModel||ai.chatModel,limit=state.lengthSec||0;var prompt='For this authorized recording, transcribe audible spoken or sung words in their original language, never translate. Return ONLY a JSON array of objects with word (one lexical word), start and end (seconds from the start of the video). Preserve actual sequence and repetitions. Do not use remembered lyrics, captions, descriptions or guesses. Omit unclear sounds rather than inventing words. Use estimated timestamps, preserve silence, and never place many words at one timestamp. '+(lang?'Requested language hint: '+lang+'. ':'')+'If you cannot hear or process the audio, return [].';var body={contents:[{parts:[{fileData:{fileUri:'https://www.youtube.com/watch?v='+id}},{text:prompt}]}],generationConfig:{responseMimeType:'application/json'}};var d=await withTimeout(fetch(ai.provider.base+'/models/'+encodeURIComponent(model)+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)}),420000).then(jsonOrThrow);if(state.videoId!==id||state.entries!==original||transcriptEl.value!==txt)return false;var c=d.candidates&&d.candidates[0];if(!c||c.finishReason&&c.finishReason!=='STOP')throw Error('Incomplete provider response');var words=parseGeminiLinkWords((c.content?.parts||[]).filter(p=>!p.thought).map(p=>p.text||'').join(''),limit);rememberAudio(null);state.entries=entriesFromWords(words);state.enChecked=null;state.wordsChecked=false;lastReport={provider:'Gemini YouTube URL input',accuracy:null,word_count:words.length,words:words,warning:'Model-generated estimated timing; no independent acoustic alignment or complete coverage verified.'};$('audit-btn').hidden=false;renderEntries();setStatus(statusEl,'ok','Gemini processed the public video URL. These word times are model estimates, not acoustic timing. Review the result and use matching audio for precision karaoke.');return true;}
+        function showNoCaptionFallback(){var canListen=!!(localCaps||dgKey||ai.connected&&(ai.audioModel||geminiLinkAvailable()));setStatus(statusEl,'warn','No usable captions. The embedded YouTube player cannot send its sound to the AI. '+(canListen?'Choose the matching recording to generate new captions from audio, progressively where supported.':'Connect a listening model or use the computer package to recognize the matching recording.')+' <button type="button" class="linklike" id="no-caption-audio">'+(canListen?'Choose matching media':'Connect listening AI')+'</button> · <button type="button" class="linklike" id="no-caption-helper">Configure trusted helper</button> · <button type="button" class="linklike" id="no-caption-gemini">'+(geminiLinkAvailable()?'Retry Gemini link':'Connect Gemini for link input')+'</button>');if(statusEl._statusTimer){clearTimeout(statusEl._statusTimer);statusEl._statusTimer=null;} $('no-caption-audio').onclick=function(){if(canListen)audioInput.click();else $('back-2').click();};$('no-caption-helper').onclick=function(){$('back-2').click();};$('no-caption-gemini').onclick=function(){if(geminiLinkAvailable())$('fetch-btn').click();else $('back-2').click();};if(canListen){$('audio-hint').style.display='';$('audio-hint').classList.add('drag');setTimeout(()=>{$('audio-hint').classList.remove('drag');},7000);}else showOfflineBox();}
+
         function rememberAudio(file){var a=$('local-audio-player');if(a){a.pause();a.remove();}if(lastAudioURL)URL.revokeObjectURL(lastAudioURL);lastAudioFile=file;lastAudioVideo=state.videoId;lastAudioURL=file?URL.createObjectURL(file):null;}
 
         // Global monotonic reference alignment. Exact anchors retain their source time;
@@ -2737,8 +2784,10 @@ HONEST LIMITS
             el.textContent="Link route is on: your worker fetches the sound and "+ai.provider.name+" writes the words.";
           }else if(WORKER_URL){
             el.textContent="Worker is set - captions come through your worker first. Connect a Groq, OpenAI or Gemini key in Step 2 and it can also transcribe links from their sound.";
+          }else if(geminiLinkAvailable()){
+            el.textContent="Gemini can attempt public YouTube URL transcription when captions are missing. Its timestamps are estimates. Matching audio is recommended for precise karaoke.";
           }else{
-            el.textContent="No audio helper set. A YouTube link can only return captions here. For accurate karaoke, choose the matching audio/video file or use your computer/helper. Caption timings are not audio-verified. ~ marks estimates; shared ranges need matching audio for exact spotlight.";
+            el.textContent="No audio helper set. YouTube links can only return captions here. If unavailable, choose the matching authorized audio/video file; compatible audio engines generate new captions as chunks finish. Caption timings are not audio-verified. ~ marks estimates; shared ranges use approximate spotlight where possible. Matching audio is needed for exact timing.";
           }
         }
         var apiStatusEl=$("api-status");
@@ -3175,13 +3224,13 @@ HONEST LIMITS
 
         /* Audio comparison: use two observations of the same source, then review bounded alternatives. Manual spelling review remains separate. */
         function accuracyEnabled(){return $('accuracy-level').value!=='fast';}
-        var lastAudioFile=null,lastAudioVideo=null,lastAudioURL=null,localCaps=null,localBusy=false,lastReport=null,dgKey="",dgModel="";
+        var lastAudioFile=null,lastAudioVideo=null,lastAudioURL=null,localCaps=null,localBusy=false,lastReport=null,dgKey="",dgModel="",progressiveSession=null;
         function notifyConnection(){$("api-connected").dataset.deepgram=dgKey?"yes":"no";document.dispatchEvent(new Event("classic-connection-change"));}
         function accuracyLevel(){return $('accuracy-level').value;}
         $('dg-connect').onclick=async function(){var key=$('dg-key').value.trim(),btn=this,note=$('dg-note');if(!key){dgKey='';dgModel='';note.textContent='Disconnected.';notifyConnection();return;}btn.disabled=true;note.textContent='Checking provider models…';try{var headers={Authorization:'Token '+key},projects=await withTimeout(fetch('https://api.deepgram.com/v1/projects',{headers:headers}),15000).then(jsonOrThrow),project=projects.projects?.[0]?.project_id;if(!project)throw Error('No accessible project');var d=await withTimeout(fetch('https://api.deepgram.com/v1/projects/'+encodeURIComponent(project)+'/models',{headers:headers}),15000).then(jsonOrThrow);var models=Array.isArray(d.stt)?d.stt:[];var model=models.find(x=>x.batch!==false&&(x.name==='nova-3'||x.canonical_name==='nova-3'));if(!model)throw Error('No compatible Nova-3 model in catalog');dgKey=key;dgModel='nova-3';note.textContent='Connected: '+dgModel+' · independent audio model.';$('audio-hint').style.display='';$('polish-btn').style.display='';if(!ai.connected){$('audio-provider').textContent='Deepgram';$('audio-provider-2').textContent='Deepgram';$('audio-limit').textContent='Up to 200 MB / 1 hour of browser-decodable audio.';$('model-select').innerHTML='<option value="">Deepgram nova-3</option>';}notifyConnection();}catch(e){dgKey='';dgModel='';note.textContent='Could not confirm a compatible model. Check your key and provider access.';notifyConnection();}finally{btn.disabled=false;}};
         $('dg-key').addEventListener('input',function(){dgKey='';dgModel='';$('dg-note').textContent='Connect the key to verify available models.';notifyConnection();});
         // Timing is evidence, not a license to invent sub-second word boundaries.
-        // Dense repaired spans are retained as unresolved phrases, never spotlighted word by word.
+        // Dense repaired spans retain their original uncertainty; playback-only estimates are separate.
         var MIN_EST_WORD=.12;
         function markUnresolved(w,a,b){
           w.timingBlocked=true;w.precision='estimated';w.estimated=true;
@@ -3582,18 +3631,18 @@ HONEST LIMITS
           }).finally(function(){ btn.disabled=false; stopProcessing(); });
         }
         async function localTranscribe(file,id){
-          if(localBusy)return;localBusy=true;var btn=$('fetch-btn'),ab=$('audio-btn'),original=state.entries,txt=transcriptEl.value;btn.disabled=ab.disabled=true;startProcessing();
+          if(localBusy)return;localBusy=true;var btn=$('fetch-btn'),ab=$('audio-btn'),original=state.entries,txt=transcriptEl.value;btn.disabled=ab.disabled=true;startProcessing();var q=beginProgressive(file);clearStatus(statusEl);if(!file)q.eligible=!txt.trim();
           try{
             var opts={mode:accuracyLevel(),local:true,language:(langSelect.value||'').split('-')[0],context:accuracyEnabled(),vocabulary:pronunciationVocabulary(),groq:$("way1-card").getAttribute("aria-pressed")==="true"&&ai.connected&&ai.provider.id==='groq'?ai.key:'',deepgram:$("way1-card").getAttribute("aria-pressed")==="true"?dgKey:'',url:id?'https://www.youtube.com/watch?v='+id:'',authorized:!!id};
             var j=await fetch('/studio-api/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(opts)}).then(jsonOrThrow);
             if(file)await fetch('/studio-api/upload?id='+encodeURIComponent(j.id),{method:'POST',body:file}).then(jsonOrThrow);
-            var result=null;
-            while(!result){var d=await fetch('/studio-api/job?id='+encodeURIComponent(j.id)).then(jsonOrThrow);$('proc-stage').textContent=d.stage||'Processing audio';if(d.status==='error')throw new Error(d.error||'Audio processing failed');if(d.status==='done'){result=d.result;break;}await new Promise(r=>setTimeout(r,1000));}
-            if(state.entries!==original||transcriptEl.value!==txt||(id&&state.videoId!==id))return;
+            var result=null,lastPartial=-1;
+            while(!result){if(!progressValid(q))return;var d=await fetch('/studio-api/job?id='+encodeURIComponent(j.id)).then(jsonOrThrow);$('proc-stage').textContent=d.stage||'Processing audio';if(d.status==='error')throw new Error(d.error||'Audio processing failed');if(d.status==='done'){result=d.result;break;}if(d.partial&&d.partial.frontier>lastPartial){lastPartial=d.partial.frontier;publishProgressive(q,d.partial.words,lastPartial,d.partial.duration);}await new Promise(r=>setTimeout(r,1000));}
+            if(!progressValid(q)||(id&&state.videoId!==id))return;
             if(!result.words||!result.words.length)throw new Error('No words recognized');
-            rememberAudio(file||null);state.entries=entriesFromTimeline(repairSequence(result.words));state.enChecked=null;state.wordsChecked=false;lastReport={...result.report,words:result.words};$("audit-btn").hidden=false;renderEntries();
+            commitProgressive(q,result.words);lastReport={...result.report,words:result.words};$("audit-btn").hidden=false;
             var r=result.report||{};setStatus(status2El,'ok','Audio processed locally. '+Number(r.review_words||0)+' words need review; '+Number((r.issues||[]).length)+' flagged intervals. Actual accuracy is not measured.');
-          }catch(e){setStatus(status2El,'warn','Local audio processing failed. Use the matching file or configured helper. Existing transcript preserved.');}finally{localBusy=false;btn.disabled=ab.disabled=false;stopProcessing();}
+          }catch(e){setStatus(status2El,'warn','Local audio processing failed. Use the matching file or configured helper. Any completed partial transcript is retained; it is not a complete result.');}finally{finishProgressive(q);localBusy=false;btn.disabled=ab.disabled=false;stopProcessing();}
         }
 
         function classicFetchJSON(url,opts){return withTimeout(fetch(url,opts),180000).then(jsonOrThrow);}
@@ -3604,13 +3653,13 @@ async function classicDG(blob,key,lang){const q=new URLSearchParams({model:'nova
 
         async function browserTranscribe(file){
           if(localBusy)return;localBusy=true;var btn=$('fetch-btn'),ab=$('audio-btn'),original=state.entries,txt=transcriptEl.value,id=state.videoId;btn.disabled=ab.disabled=true;startProcessing();
-          var ctx=null;
+          var ctx=null,q=beginProgressive(file);clearStatus(statusEl);
           try{
             if(file.size>200*1024*1024)throw Error('Browser limit is 200 MB. Use the computer package for larger files.');
             ctx=new AudioContext();var buffer=await ctx.decodeAudioData(await file.arrayBuffer());await ctx.close();ctx=null;if(!buffer.duration||buffer.duration>3600)throw Error('Browser limit is one hour of decoded audio. Use the computer package for longer recordings.');
             var language=(langSelect.value||'').split('-')[0],mode=accuracyLevel(),groq=$("way1-card").getAttribute("aria-pressed")==="true"&&ai.connected&&ai.provider.id==='groq'?ai.key:'',deep=$("way1-card").getAttribute("aria-pressed")==="true"?dgKey:'',models=ai.audioModels.filter(m=>['whisper-large-v3','whisper-large-v3-turbo'].includes(m)),all=[],issues=[],passes=[],done=0,providers=new Set();
             var target=mode==='fast'?1:mode==='maximum'?3:2;
-            for(var a=0;a<buffer.duration;a+=30){var b=Math.min(buffer.duration,a+35),lo=a?a+2.5:0,hi=b<buffer.duration?b-2.5:b; $('proc-stage').textContent='Listening '+fmtSec(a)+' – '+fmtSec(b)+' · '+Math.round(100*a/buffer.duration)+'%';
+            for(var a=0;a<buffer.duration;a+=30){if(!progressValid(q))return;var b=Math.min(buffer.duration,a+35),lo=a?a+2.5:0,hi=b<buffer.duration?b-2.5:b; $('proc-stage').textContent='Listening '+fmtSec(a)+' – '+fmtSec(b)+' · '+Math.round(100*a/buffer.duration)+'%';
               var pcm=await classicExtract(buffer,a,b),blob=classicWav(pcm),engines=[];
               if(groq&&models.includes('whisper-large-v3'))engines.push(['Groq large-v3',()=>classicGroq(blob,groq,'whisper-large-v3',language)]);
               if(deep)engines.push(['Deepgram nova-3',()=>classicDG(blob,deep,language)]);
@@ -3638,13 +3687,13 @@ async function classicDG(blob,key,lang){const q=new URLSearchParams({model:'nova
               if(!words.length)issues.push({start:lo,end:hi,kind:'No recognized words in chunk; may be silence/music'});
               for(var w of words){var x={...w,start:w.start+a,end:w.end+a};if(Number.isFinite(w.cueStart))x.cueStart=w.cueStart+a;if(Number.isFinite(w.cueEnd))x.cueEnd=w.cueEnd+a;if((x.start+x.end)/2>=lo&&(x.start+x.end)/2<hi)all.push(x);}
               if(mode!=='fast')for(var t=0;t<b-a-1;t+=2){var left=a+t,right=Math.min(b,left+2);if((left+right)/2<lo||(left+right)/2>=hi)continue;var sum=0,count=0;for(var k=t*16000;k<Math.min(pcm.length,(right-a)*16000);k+=32){sum+=pcm[k]*pcm[k];count++;}if(count&&Math.sqrt(sum/count)>.025&&!words.some(w=>w.end+a>left&&w.start+a<right))issues.push({start:left,end:right,kind:'Untranscribed sound; may be instrumental'});}
-              done+=hi-lo;if(b>=buffer.duration)break;
+              done+=hi-lo;publishProgressive(q,all,hi,buffer.duration);if(b>=buffer.duration)break;
             }
-            if(state.videoId!==id||state.entries!==original||transcriptEl.value!==txt)return;
+            if(!progressValid(q))return;
             if(!all.length)throw Error('No word-timed audio result. Check model access or try the computer package.');
-            var stitched=[];for(var w of all){var q=stitched.at(-1);if(q&&tokenKey(q.word)===tokenKey(w.word)&&Math.abs(q.start-w.start)<.025&&Math.abs(q.end-w.end)<.04)continue;stitched.push(w);}var words=repairSequence(stitched);
-            rememberAudio(file);state.entries=entriesFromWords(words);state.enChecked=null;state.wordsChecked=false;lastReport={mode:mode,coverage:100*done/buffer.duration,duration:buffer.duration,providers:[...providers],issues:issues,passes:passes,accuracy:null,word_count:words.length,words:words,estimated:words.filter(w=>w.estimated).length,warning:'No independent acoustic alignment in browser; model agreement is not ground truth.'};$('audit-btn').hidden=false;renderEntries();setStatus(status2El,'ok','Audio processed: '+Math.round(lastReport.coverage)+'% coverage; '+issues.length+' flagged intervals. Use Audit for details. Accuracy is not independently measured.');
-          }catch(e){setStatus(status2El,'warn',String(e.message||'Audio processing failed').replace(/[<>&]/g,''));}finally{if(ctx)ctx.close();localBusy=false;btn.disabled=ab.disabled=false;stopProcessing();}
+            var stitched=[];for(var w of all){var previousWord=stitched.at(-1);if(previousWord&&tokenKey(previousWord.word)===tokenKey(w.word)&&Math.abs(previousWord.start-w.start)<.025&&Math.abs(previousWord.end-w.end)<.04)continue;stitched.push(w);}var words=repairSequence(stitched);
+            commitProgressive(q,words);lastReport={mode:mode,coverage:100*done/buffer.duration,duration:buffer.duration,providers:[...providers],issues:issues,passes:passes,accuracy:null,word_count:words.length,words:words,estimated:words.filter(w=>w.estimated).length,warning:'No independent acoustic alignment in browser; model agreement is not ground truth.'};$('audit-btn').hidden=false;setStatus(status2El,'ok','Audio processed: '+Math.round(lastReport.coverage)+'% coverage; '+issues.length+' flagged intervals. Use Audit for details. Accuracy is not independently measured.');
+          }catch(e){setStatus(status2El,'warn',String(e.message||'Audio processing failed').replace(/[<>&]/g,''));}finally{finishProgressive(q);if(ctx)ctx.close();localBusy=false;btn.disabled=ab.disabled=false;stopProcessing();}
         }
 
         function transcribeAudioFile(file){
@@ -4226,16 +4275,13 @@ async function classicDG(blob,key,lang){const q=new URLSearchParams({model:'nova
             }
             
             finish(false);
-          }).catch(function(err){
-            var lp=$("audio-hint");
-            if(lp && lp.style.display!=="none"){ lp.classList.add("drag"); setTimeout(function(){ lp.classList.remove("drag"); }, 7000); }
-            if(err&&err.message==="notracks"){
-              setStatus(statusEl,"warn","No usable captions were returned. The video may not have captions or the caption sources may be unavailable. "+(ai.connected&&ai.audioModel? "Use the listening panel on the right: pick the video&rsquo;s sound file and "+ai.provider.name+" will write down the words it hears." : "The computer pack (top-right info button) can fetch the sound and write the words on your PC."));
-            }else{
-              setStatus(statusEl,"warn","No usable captions were returned by the available services. This can happen when a video or the caption services are unavailable. "+(ai.connected&&ai.audioModel? "Use the listening panel on the right: pick the video&rsquo;s sound file and "+ai.provider.name+" will write down the words it hears. Or set the free online helper once (Step 2, &rsquo;Online helper address&rsquo;) — then Get the transcript can attempt audio recognition for supported videos." : "With a Groq, OpenAI or Gemini key connected, the listening panel on the right can write the words from a sound file - or the computer pack (top-right info button) can fetch the sound itself. Or set the free online helper once (Step 2, &rsquo;Online helper address&rsquo;) — then Get the transcript can fetch the captions itself."));
-              showOfflineBox();
+          }).catch(async function(err){
+            if(state.videoId!==id)return;
+            if(geminiLinkAvailable()&&confirm('No captions found. Send the public video URL to Google Gemini for estimated transcription? Continue only for content you have permission to process.')){
+              setStatus(statusEl,'info','Gemini is processing the video URL. Word times will be estimates.');
+              try{await geminiLinkTranscript(id,lang);return;}catch(e){if(state.videoId!==id)return;}
             }
-            transcriptEl.focus();
+            showNoCaptionFallback();
           }).finally(function(){ btn.disabled=false; stopProcessing(); });
           }
         });

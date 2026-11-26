@@ -49,7 +49,10 @@ def execute(job,source,opts,remote=False):
                 files=[p for p in pathlib.Path(td).glob('audio.*') if p.is_file() and p.suffix not in ('.part','.ytdl')]
                 if not files:raise RuntimeError('Audio unavailable; use an authorized local file or caption workflow.')
                 source=files[0]
-            result=engine.run(source,opts,progress,cache_dir=CACHE)
+            def partial(words,frontier,duration):
+                job['partial']={'words':words,'frontier':frontier,'duration':duration}
+            result=engine.run(source,opts,progress,cache_dir=CACHE,partial=partial)
+            job.pop('partial',None)
             job.update(status='done',stage='Complete',progress=100,result=result)
     except Exception as e:
         # No provider response bodies, credentials or arbitrary URL details in client errors.
@@ -66,7 +69,7 @@ def dispatch(h,path,method):
     try:
         if method=='GET' and path=='/studio-api/capabilities':h._send(engine.capabilities());return True
         if method=='GET' and path=='/studio-api/job':
-            q=urllib.parse.parse_qs(urllib.parse.urlparse(h.path).query); j=JOBS.get((q.get('id') or [''])[0]);h._send({k:v for k,v in j.items() if k not in ('opts','created')} if j else {'error':'Unknown job'},200 if j else 404);return True
+            q=urllib.parse.parse_qs(urllib.parse.urlparse(h.path).query); j=JOBS.get((q.get('id') or [''])[0]);h._send({k:v for k,v in j.copy().items() if k not in ('opts','created')} if j else {'error':'Unknown job'},200 if j else 404);return True
         if method=='POST' and path=='/studio-api/create':
             d=read_json(h);opts=settings(d);link=str(d.get('url','')).strip();video=None
             if link:

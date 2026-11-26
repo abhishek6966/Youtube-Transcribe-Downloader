@@ -41,7 +41,7 @@ class Tests(unittest.TestCase):
             def dg(p,key,lang):return ([{'word':'hello','start':.12,'end':.55}], 'en', [])
             opts=dict(mode='advanced',groq='secret-groq',deepgram='secret-dg',local=False,cache=True)
             with patch.object(e,'groq',groq),patch.object(e,'deepgram',dg):
-                res=e.run(path,opts,cache_dir=td);self.assertEqual(res['report']['coverage'],100);self.assertEqual(res['report']['corroborated'],1);self.assertNotIn('secret-',json.dumps(res));first=len(calls)
+                snapshots=[];res=e.run(path,opts,cache_dir=td,partial=lambda words,end,duration:snapshots.append((len(words),end,duration)));self.assertEqual(len(snapshots),2);self.assertLess(snapshots[0][1],snapshots[1][1]);self.assertEqual(snapshots[1][1],36);self.assertEqual(res['report']['coverage'],100);self.assertEqual(res['report']['corroborated'],1);self.assertNotIn('secret-',json.dumps(res));first=len(calls)
                 res2=e.run(path,opts,cache_dir=td);self.assertEqual(len(calls),first);self.assertEqual(res['words'],res2['words']);self.assertEqual(res2['report']['coverage'],100)
             self.assertEqual(len(list(pathlib.Path(td).rglob('*.json'))),2)
 if __name__=='__main__':unittest.main()

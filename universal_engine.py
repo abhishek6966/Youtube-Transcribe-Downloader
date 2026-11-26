@@ -304,7 +304,7 @@ def capabilities():
     def has(m):return importlib.util.find_spec(m) is not None
     return {'local_whisper':has('faster_whisper'),'vocal_isolation':has('demucs'),'forced_alignment':has('whisperx'),'ffmpeg':bool(shutil.which('ffmpeg') or has('imageio_ffmpeg'))}
 
-def run(path,opts,progress=lambda *a:None,models=None,cache_dir=None):
+def run(path,opts,progress=lambda *a:None,models=None,cache_dir=None,partial=lambda *a:None):
     """One source, bounded chunks/retries. Cloud use is explicit and optional."""
     models=models or LocalModels(); mode=opts.get('mode','advanced');lang=opts.get('language') or None; groqkey=opts.get('groq','');dgkey=opts.get('deepgram',''); use_local=opts.get('local',True); caps=capabilities(); warnings=[];providers=[];issues=[]; allwords=[];processed=0;raw=[]
     vocabulary=vocabulary_hint(opts.get('vocabulary',''));groqmodels=opts.get('groqModels',['whisper-large-v3','whisper-large-v3-turbo'])
@@ -334,7 +334,7 @@ def run(path,opts,progress=lambda *a:None,models=None,cache_dir=None):
             progress(f'Audio {a:.0f}–{b:.0f}s of {duration:.0f}s',5+int(90*a/duration)); checkpoint=cache/f'{index}.json' if cache else None
             if checkpoint and checkpoint.exists():
                 try:
-                    z=json.loads(checkpoint.read_text());allwords+=z['words'];issues+=z['issues'];providers+=z['providers'];raw+=z['raw'];warnings+=z['warnings'];processed+=hi-lo;continue
+                    z=json.loads(checkpoint.read_text());allwords+=z['words'];issues+=z['issues'];providers+=z['providers'];raw+=z['raw'];warnings+=z['warnings'];processed+=hi-lo;partial(stitch(allwords),hi,duration);continue
                 except Exception: pass
             chunk=tmp/'chunk.wav';cut(original,chunk,a,b);alt=tmp/'alt.wav'
             if enhanced:cut(enhanced,alt,a,b)
@@ -452,6 +452,7 @@ def run(path,opts,progress=lambda *a:None,models=None,cache_dir=None):
                 if w.get('speaker') is not None:w['speaker']=f'chunk {index+1} / speaker {w["speaker"]}'
             item={'words':selected,'issues':chunkissues,'providers':names,'raw':[{'chunk':[a,b],'tracks':tracks,'metadata':metadata}],'warnings':localwarn}
             allwords+=selected;issues+=chunkissues;providers+=names;raw+=item['raw'];warnings+=localwarn;processed+=hi-lo
+            partial(stitch(allwords),hi,duration)
             if checkpoint and len(tracks)>=target:
                 temp=checkpoint.with_suffix('.tmp');temp.write_text(json.dumps(item,ensure_ascii=False));temp.replace(checkpoint)
         allwords=stitch(allwords)
