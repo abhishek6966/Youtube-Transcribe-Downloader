@@ -213,3 +213,8 @@ Run `python tests/test_universal.py`, `python tests/test_local_service.py`, `pyt
 | `benchmark.py` | Reference-based accuracy metrics |
 
 See [license](LICENSE) and [contribution guide](CONTRIBUTING.md). Animated graphics illustrate the workflow; mock screenshots are not real verified song results.
+
+
+### Troubleshooting direct Gemini link recognition
+
+If captions are unavailable, **Retry Gemini link** directly retries Google (with your consent) without repeating the caption search. HTTP errors, quota limits, incomplete timed output and network failures have separate diagnostic messages. The URL route requires a supported public video and compatible Gemini model; it does not provide acoustic word alignment. Use matching authorized audio for more precise timing. No credentials or raw provider response bodies are displayed in diagnostics.
