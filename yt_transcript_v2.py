@@ -399,7 +399,7 @@ def normalize_items(items, captions=False):
     previous = None
     def key(w):
         return ''.join(c for c in unicodedata.normalize('NFC', w).casefold() if unicodedata.category(c)[0] in 'LMN')
-    for a, b, t in sorted(items, key=lambda x: x[0]):
+    for a, b, t in items:
         if not math.isfinite(a) or a < 0:
             continue
         b = max(a + .02, b) if math.isfinite(b) else a + .25
@@ -423,7 +423,12 @@ def normalize_items(items, captions=False):
         else:
             out.append((a, b, ' '.join(words)))
         previous = (b, words)
-    return sorted(out, key=lambda x: x[0])
+    # Repaired offsets are only estimates. Never sort text by inconsistent offsets.
+    ordered=[]
+    for a,b,t in out:
+        if ordered and a<=ordered[-1][0]:a=ordered[-1][0]+.001
+        ordered.append((a,max(a+.001,b),t))
+    return ordered
 
 
 def group_by_second(items):

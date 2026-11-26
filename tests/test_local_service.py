@@ -12,8 +12,8 @@ class ServiceTests(unittest.TestCase):
         def fake(path,opts,progress,cache_dir=None):
             self.assertEqual(pathlib.Path(path).read_bytes(),b'test audio');self.assertEqual(opts['groq'],'not-a-real-key');progress('Mock ASR',50);return {'words':[],'report':{'accuracy':None}}
         try:
-            with get('/') as r:self.assertIn(b'Universal Transcription Studio',r.read())
-            with get('/studio.js') as r:self.assertIn(b'reconcile',r.read())
+            with get('/') as r:self.assertIn(b'YouTube Transcribe Downloader',r.read())
+            with get('/Transcript.html') as r:self.assertIn(b'repairSequence',r.read())
             with get('/studio-api/capabilities') as r:self.assertIn('local_whisper',json.load(r))
             with self.assertRaises(urllib.error.HTTPError) as er:get('/studio-api/capabilities',headers={'Origin':'https://evil.example'})
             self.assertEqual(er.exception.code,403)

@@ -341,7 +341,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._trusted():return
         parsed = urllib.parse.urlparse(self.path)
         if studio.dispatch(self,parsed.path,'GET'):return
-        assets={'/':'index.html','/index.html':'index.html','/Transcript.html':'Transcript.html','/studio.js':'studio.js','/studio.css':'studio.css','/offline-pack.zip':'offline-pack.zip'}
+        assets={'/':'index.html','/index.html':'index.html','/Transcript.html':'Transcript.html','/offline-pack.zip':'offline-pack.zip'}
         if parsed.path in assets:
             name=assets[parsed.path];ctype={'html':'text/html; charset=utf-8','js':'application/javascript; charset=utf-8','css':'text/css; charset=utf-8','zip':'application/zip'}[name.rsplit('.',1)[-1]]
             with open(os.path.join(HERE,name),'rb') as f:self._send(f.read(),ctype=ctype)

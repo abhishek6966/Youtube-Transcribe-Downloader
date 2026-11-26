@@ -1,405 +1,169 @@
 <div align="center">
-
-<img src="docs/readme/studio-hero.gif" width="100%" alt="Animated Universal Transcription Studio banner: audio waveform becomes a verified word timeline." />
-
-# Universal Transcription Studio
-
-**Every word, in its place.**
-
-An audio-first AI workspace for transcription, evidence-based review, multilingual text and synchronized karaoke.
-
-![Release](https://img.shields.io/badge/Studio-v1.0-E62117?style=flat-square)
-![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)
-![Frontend](https://img.shields.io/badge/Web-HTML%20%7C%20CSS%20%7C%20JS-171719?style=flat-square)
-![License](https://img.shields.io/badge/License-MIT-E62117?style=flat-square)
-![MCP](https://img.shields.io/badge/MCP-Integrated-E62117?style=flat-square)
-
-[![OPEN LIVE WEB APP](https://img.shields.io/badge/OPEN%20LIVE%20WEB%20APP-E62117?style=for-the-badge&logo=github&logoColor=white)](https://abhishek6966.github.io/Youtube-Transcribe-Downloader/)
-
-**Live application:** [https://abhishek6966.github.io/Youtube-Transcribe-Downloader/](https://abhishek6966.github.io/Youtube-Transcribe-Downloader/) · **[Computer setup](#quick-start)** · **[Full technical guide](STUDIO-README.md)**
-
-[Features](#what-makes-it-different) · [Architecture](#how-it-works) · [Capabilities](#capability-matrix) · [Testing](#testing-and-benchmarks) · [Privacy](#privacy-and-trust)
-
+  <img src="docs/readme/studio-hero.gif" alt="Every word, in its place — animated audio transcription banner" width="100%" />
+  <h1>YouTube Transcribe Downloader</h1>
+  <p><strong>Classic Precision Edition</strong> · AI transcription · Multilingual text · Synchronized karaoke</p>
+  <p>Transcribe. Compare. Verify. Sing along.</p>
+  <p>
+    <a href="#accuracy-engine"><img src="docs/readme/badges/release.png" width="134" alt="Edition: Classic" /></a>
+    <a href="#computer-package"><img src="docs/readme/badges/python.png" width="126" alt="Python: 3.12" /></a>
+    <a href="#deployment"><img src="docs/readme/badges/frontend.png" width="159" alt="Frontend: HTML / JS" /></a>
+    <a href="LICENSE"><img src="docs/readme/badges/license.png" width="121" alt="License: MIT" /></a>
+    <a href="mcp-server/README.md"><img src="docs/readme/badges/mcp.png" width="110" alt="MCP: Tools" /></a>
+  </p>
+  <p>
+    <a href="https://abhishek6966.github.io/Youtube-Transcribe-Downloader/"><img src="docs/readme/badges/open-app.png" width="252" alt="Open live web app" /></a>
+    <a href="offline-pack.zip"><img src="docs/readme/badges/computer.png" width="252" alt="Download computer package" /></a>
+  </p>
+  <p><strong><a href="https://abhishek6966.github.io/Youtube-Transcribe-Downloader/">Open live application</a></strong> · <a href="#computer-package">Computer setup</a> · <a href="#accuracy-engine">Technical guide</a></p>
+  <p><a href="#quick-start">Quick start</a> · <a href="#accuracy-engine">Accuracy engine</a> · <a href="#karaoke">Karaoke</a> · <a href="#deployment">Deployment</a> · <a href="#verification">Verification</a></p>
 </div>
 
----
 
-## A more trustworthy way to transcribe
+> One familiar interface. The original animated three-step Classic website is now the sole user-facing application on GitHub Pages and in the computer package. `index.html` and `Transcript.html` contain identical HTML; old bookmarks still work. No separate advanced dashboard is required.
 
-Songs, interviews, lectures, podcasts and conversations deserve more than a text box full of guesses. Universal Transcription Studio compares available recognition passes, maintains a chronological word timeline, and exposes the evidence behind uncertain words so users can listen, review and correct them.
-
-<table>
-<tr>
-<td width="33%" valign="top"><strong>01 · Listen</strong><br/>Use local Whisper or configured cloud recognition for authorized audio and video.</td>
-<td width="33%" valign="top"><strong>02 · Verify</strong><br/>Compare timed alternatives, preserve genuine repetitions and review disputed words.</td>
-<td width="33%" valign="top"><strong>03 · Use</strong><br/>Play along with the transcript, inspect word evidence and export your results.</td>
-</tr>
-</table>
-
-<p align="center"><img src="docs/readme/studio-interface.webp" width="100%" alt="Actual Universal Transcription Studio browser workspace, showing source, accuracy settings and transcript review panel." /></p>
-<p align="center"><sub>Actual application screenshot · Browser workspace before transcription</sub></p>
-
-> [!IMPORTANT]
-> This studio is designed for measurable reliability, not a guarantee of perfect transcription. Model agreement is evidence, not ground truth. Unclear audio, accents, singing, unsupported languages and overlapping voices can still produce errors.
-
-## Three-step studio
-
-<p align="center"><img src="docs/readme/three-step-tour.gif" width="100%" alt="Animated tour of the actual welcome, connect AI and transcription screens." /></p>
-<p align="center"><sub>Actual application screenshots · animated tour, not live API results.</sub></p>
-
-| 01 · Welcome | 02 · Connect AI | 03 · Transcribe |
-| :---: | :---: | :---: |
-| ![Welcome](docs/readme/studio-step-welcome.webp) | ![Connect](docs/readme/studio-step-connect.webp) | ![Workspace](docs/readme/studio-step-workspace.webp) |
-| Animated welcome and Start | Paste a key or use local Whisper | Original-style two-panel workspace |
-
-```mermaid
-flowchart LR
-    A[01 Welcome] --> B[02 Connect AI]
-    B --> C{Processing route}
-    C -->|Cloud key| D[Discover compatible audio models]
-    C -->|Computer| E[Local Whisper]
-    D --> F[03 Transcribe]
-    E --> F
-    F --> G[Listen and review]
-    G --> H[Save TXT or SRT]
-    classDef accent fill:#fdecea,stroke:#e62117,color:#181818
-    class A,B,F,H accent
-```
-
-**Step 1 — Welcome.** Open the app and press Start. The original pastel video-card animation and transcription demonstration stay visible. Background motion pauses in a hidden tab and honors reduced-motion settings.
-
-**Step 2 — Connect.** Paste a recognized API key or choose a provider if its key is ambiguous. Groq and Deepgram model catalogs are fetched from the provider; only supported timed models are selected. Local Whisper requires no cloud key. Other legacy providers use the retained Classic workflow. Use the optional trusted helper settings for browser-based YouTube audio acquisition.
-
-**Step 3 — Transcribe.** Paste a YouTube link or choose a sound/video file. Select a language, review the discovered listening models, choose Fast, Advanced or Maximum, then select **Get the transcript**. The live equalizer, progress bar and elapsed timer reflect the processing job. The original and English-letter views share one timeline and scroll within the workspace. Advanced tools contain reference comparison, evidence, quality report and audit JSON.
-
-| Workspace control | Behavior |
-| :--- | :--- |
-| Get the transcript | Runs the selected recognition route and accuracy mode. |
-| Video preview | Shows the video thumbnail and ID; title/channel are retrieved when available. Playback depends on YouTube embedding. |
-| Play & sing along | Plays or pauses the source and highlights recognized timed words. |
-| Check the words | Offers a new Maximum-mode audio pass on the same recording; a successful run replaces the result, including manual edits, after confirmation. |
-| Add them from a file | Imports timestamped TXT, SRT or VTT; cue-derived word times are estimates, not audio verification. |
-| Save both files / Save as .srt | Exports original and romanized text or subtitle pairs. |
-| Copy / Clear | Copies original text or clears the current result after confirmation. |
-| Advanced tools | Opens reference text for the next recognition run, word evidence, quality report, audit export and a link to original Classic tools. |
-
-Desktop has a fixed-height workspace; smaller viewports and expanded content may require internal panel scrolling, not outer-page scrolling. The complete original `Transcript.html` is still available for the classic caption-first route and legacy controls.
-
-## What makes it different
-
-| Feature | What it does |
-| :--- | :--- |
-| **Multi-model recognition** | Compare local faster-whisper, Groq Whisper variants and optional independent Deepgram results. |
-| **Ordered word timeline** | Keep original word timings and chronological sequence; suppress overlapping observations without deleting genuine repeated words. |
-| **Missing-word recovery** | Recover omissions supported by additional recognition routes, including supported opening and closing words. |
-| **Targeted retries** | Re-listen to selected uncertain regions within a bounded retry budget. |
-| **Optional acoustic processing** | On the computer, Maximum mode can use Demucs vocal isolation, noise reduction and WhisperX forced alignment when available. |
-| **Multilingual transcription** | Automatically detect language per chunk; original-script and romanized views where supported. |
-| **Evidence-based review** | Inspect word timestamps and competing predictions; optional AI context suggestions never silently rewrite the transcript. |
-| **Karaoke playback** | Follow the shared playback clock with synchronized word highlighting and scrolling. |
-| **Quality report** | Inspect processing coverage, corroboration, unresolved regions, provider evidence and warnings. |
-| **Portable exports** | Save TXT, millisecond SRT subtitles and audit JSON. |
+**Live website:** https://abhishek6966.github.io/Youtube-Transcribe-Downloader/  
+**Classic direct link:** https://abhishek6966.github.io/Youtube-Transcribe-Downloader/Transcript.html
 
 ## Quick start
 
-### Option A — Open the studio online
+<div align="center"><img src="docs/readme/three-step-tour.gif" alt="Actual Classic UI screenshots in a three-step slideshow; transcript uses a deterministic mock recognition fixture" width="100%" /></div>
 
-1. Open the [GitHub Pages studio](https://abhishek6966.github.io/Youtube-Transcribe-Downloader/).
-2. Press **Start**, paste a Groq key or select Deepgram and connect. The app checks available models and advances to the workspace.
-3. Select an authorized audio/video file, or enter a YouTube link and configure a trusted helper. Choose **Advanced** (default), leave language on **Auto** if unsure.
-4. Click **Get the transcript**. Review the result, play the source, optionally check the words again, and export the transcript.
+| Step | What to do |
+|---|---|
+| 1 · Welcome | Open the live web app and press Start. |
+| 2 · Connect | Paste a recognized provider key, or select its provider if the key format is ambiguous. The app requests the provider's model catalog. Optional Deepgram connection uses a separate key and accessible project/model-list permissions. |
+| 3 · Transcribe | Choose the language (or Auto), accuracy mode, and matching file. A trusted deployed HTTPS helper can attempt YouTube audio processing; without audio access, a link returns captions only. |
+| Review | Inspect original text and English-letter pronunciation, listen to the actual recording, and use Check the words for an audio recheck when available. |
+| Export | Save TXT or SRT in both scripts, or export the available audit JSON. |
 
-The web edition processes supported uploaded files in overlapping audio chunks. Browser access, CORS, media decoding and provider availability can affect this route. Cloud providers may charge for usage. The website alone does not fetch every YouTube stream.
+<img src="docs/readme/studio-step-welcome.webp" width="100%" alt="Classic animated landing page" />
+<img src="docs/readme/studio-step-connect.webp" width="100%" alt="Classic provider connection screen" />
+<img src="docs/readme/studio-step-workspace.webp" width="100%" alt="Classic workspace; deterministic mock ASR example, not verified song lyrics" />
 
-### Option B — Run on your computer
+## Accuracy engine
 
-**Windows**
+<img src="docs/readme/verification-flow.gif" width="100%" alt="Illustrative verification pipeline animation" />
 
-1. Download [`offline-pack.zip`](offline-pack.zip) from this repository (or use the Computer package button on the website).
-2. Extract the ZIP and install [Python 3.12](https://www.python.org/downloads/) if required.
-3. Double-click **`Open_Transcriber.bat`**. The first run creates a private virtual environment and installs core dependencies.
-4. The studio opens in your browser at **`http://127.0.0.1:8765/`**. Press Start, choose **On your computer**, continue, select a recording and click **Get the transcript**.
-
-**macOS / Linux**
-
-From the extracted directory, with a compatible Python installation (3.12 recommended):
-
-```bash
-sh start_studio.sh
-```
-
-No cloud key is needed when using the local Whisper recognition route. The first local job downloads model weights; allow several GB of storage, a reliable internet connection for setup, and adequate RAM. Subsequent local file jobs can run without audio API requests once dependencies and weights are installed. Close the terminal to stop the local service.
-
-### Optional — Unlock Maximum mode's local models
-
-Close the studio. On Windows double-click **`Install_Maximum_Models.bat`**. On macOS/Linux, after initial setup:
-
-```bash
-.venv/bin/python -m pip install -r requirements-maximum.txt
-```
-
-This installs optional Demucs and WhisperX dependencies. Model weights are downloaded separately when required. Compatibility and resource requirements vary. When a model is unavailable, the studio reports the fallback rather than claiming that alignment or isolation was performed.
-
-## How it works
-
-<p align="center"><img src="docs/readme/verification-flow.gif" width="100%" alt="Animated five-stage verification flow: acquire audio, recognize, compare evidence, review and export." /></p>
-
-The studio first prepares audio, then processes overlapping chunks through the available recognition engines. The comparison engine aligns competing word sequences by text and time, preserving source evidence. Local Maximum mode can add vocal isolation, acoustic alignment and targeted audio retries. A final audit reports the completed checks and unresolved uncertainty.
-
-| Engine / component | Role |
-| :--- | :--- |
-| faster-whisper / Whisper Large V3 and Turbo | General multilingual recognition, local or via Groq |
-| Deepgram Nova-3 | Optional independent recognition and chunk-level speaker labels |
-| Demucs | Optional computer-side vocal isolation |
-| WhisperX | Optional computer-side acoustic alignment for supported languages |
-| Groq text model | Optional contextual suggestions for disputed observed candidates |
-| Python / JavaScript comparison engines | Time-aware reconciliation, evidence and quality checks |
-
-The Python engine and browser JavaScript port have similar consensus goals, but are not identical implementations. Local processing supports capabilities that the static browser cannot execute.
-
-### Recognition and evidence pipeline
+Recognition and timing are separate problems. Sorting individual words by imperfect or overlapping timestamps can corrupt the phrase order. This version preserves provider token sequence, repairs conflicting offsets separately, and labels repaired or inferred word boundaries as **estimated**. It also checks nearby segment-text permutations when the exact same tokens appear in a different order. That comparison is evidence from the same model, not independent proof of the performance.
 
 ```mermaid
 flowchart TD
-    A[Authorized media] --> B{Source route}
-    B -->|Browser upload| C[Decode audio and create overlapping chunks]
-    B -->|Local| D[Prepare audio and optional enhancement]
-    B -->|Trusted helper| E[Helper returns timed audio words]
-    C --> F[Available cloud ASR passes]
-    D --> G[Local Whisper and optional cloud ASR]
-    F --> H[Time-aware word reconciliation]
-    G --> H
-    E --> H
-    H --> I{Uncertain regions detected}
-    I -->|Supported mode and budget| J[Bounded targeted retry or extra pass]
-    J --> K[Record alternative evidence]
-    I -->|No further checks available| K
-    K --> L[Optional local acoustic alignment]
-    L --> M[Quality report and chronological words]
-    M --> N[Playback and exports]
-    classDef red fill:#fdecea,stroke:#e62117,color:#181818
-    class A,H,M,N red
+    A[Classic source selection] --> B{Audio available?}
+    B -->|No| C[Caption-only retrieval]
+    B -->|File or authorized link| D[Audio recognition]
+    D --> E[Ordered word observations]
+    E --> F[Compare bounded alternative sequences]
+    F --> G{Additional audio observation corroborates alternate?}
+    G -->|Yes| H[Accept supported alternative]
+    G -->|No| I[Preserve primary and report dispute]
+    C --> J[Remove overlapping caption carry-over]
+    H --> K[Sequence-preserving timing repair]
+    I --> K
+    J --> K
+    K --> L[Timed transcript and karaoke]
+    K --> M[Audit where available]
 ```
 
-### Automatic AI connection and routing
+### Accuracy modes
 
-```mermaid
-flowchart TD
-    A[Paste API key] --> B{Known provider prefix?}
-    B -->|No| C[Select provider explicitly]
-    B -->|Yes| D[Identify provider]
-    C --> D
-    D --> E{Advanced audio supported?}
-    E -->|Groq or Deepgram| F[Fetch provider catalog]
-    F --> G{Compatible timed model?}
-    G -->|Yes| H[Connect and open Studio]
-    G -->|No| I[Report unavailable model]
-    E -->|Legacy provider| J[Classic workflow]
-    K[Local computer] --> L[Check local capabilities]
-    L --> H
-    classDef red fill:#fdecea,stroke:#e62117,color:#181818
-    class A,H red
-```
+| Mode | Browser Groq / Deepgram file route | Computer route | Trusted helper |
+|---|---|---|---|
+| Fast | One available word-timed recognition pass | One available pass | One Whisper pass |
+| Advanced | Up to two passes | Multi-model recognition and bounded retries | Up to two Whisper passes |
+| Maximum | Up to three observations, plus one targeted retry per disputed chunk | Extra recognition, bounded retries, optional vocal separation and forced alignment | Up to three Whisper observations |
 
-Catalog discovery verifies availability in the returned list, not actual transcription permissions or accuracy. Ambiguous keys are not sent to guessed providers. Provider calls may fail due to permissions, network or CORS.
+The number of successful passes depends on available models, credentials, audio format, and provider access. Repeated observations from Whisper are **not independent model families**. Deepgram is an optional independent family. Text AI can rank observed alternatives in context; it cannot hear the recording and its suggestions do not automatically rewrite words. OpenAI and Gemini retain their supported direct routes; Gemini times are estimates and its route is not equivalent to the multi-model pipeline.
 
-## Choose your level of verification
-
-<table>
-<tr><td width="33%" valign="top"><h3>Fast</h3><strong>Quick recognition</strong><p>One listening pass with core validation.</p><sub>Lowest processing effort</sub></td>
-<td width="33%" valign="top"><h3>Advanced</h3><strong>Recommended default</strong><p>Multiple available recognition passes and time-aware comparison.</p><sub>Balanced accuracy and processing effort</sub></td>
-<td width="33%" valign="top"><h3>Maximum</h3><strong>Deeper verification</strong><p>Extra checks, bounded retries, and optional computer-side isolation and alignment.</p><sub>More time, memory and possible API cost</sub></td></tr>
-</table>
-
-Actual processing depends on installed models, credentials and supported audio. Selecting Maximum does not automatically make every optional engine available.
-
-## Karaoke & word evidence
-
-<p align="center"><img src="docs/readme/karaoke-preview.gif" width="100%" alt="Animated illustrative karaoke timeline highlighting words individually in playback order." /></p>
-<p align="center"><sub>Illustrative animation · Original demonstration text, not a live recognition result</sub></p>
-
-- Play the source recording, follow the timed words, and switch between **Side by side**, **Original** and **English letters**.
-- Select a word to inspect recognition evidence and its timestamp, or seek to its interval when playback is available.
-- Correct words manually with undo. Paste an authorized reference transcript to compare discrepancies without overwriting audio evidence.
-- Export timed text, subtitles or the audit JSON for further inspection.
-
-Word-level timings depend on source evidence and available alignment models. Syllable-level singing alignment is not implemented; YouTube embedding and autoplay may be restricted.
-
-### Shared playback clock
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant P as Media player
-    participant T as Timed word timeline
-    participant O as Original column
-    participant R as English letters
-    U->>P: Play or seek
-    loop While playback is available
-        P->>T: Current media time
-        T->>O: Highlight matching word
-        T->>R: Highlight same word index
-        T->>O: Scroll active row if enabled
-    end
-    U->>P: Pause
-    Note over O,R: Highlight follows the media clock, not a separate timer
-```
-
-## Capability matrix
-
-| Capability | GitHub Pages | Computer |
-| :--- | :---: | :---: |
-| Audio/video file recognition | Cloud key | Local or cloud |
-| Authorized YouTube links | Trusted helper | Subject to access |
-| Groq / Deepgram | Supported | Supported |
-| Local Whisper, no audio API key | — | Supported |
-| Multi-pass comparison and evidence | Supported | Supported |
-| Context suggestions / reference comparison | Supported | Supported |
-| Noise reduction | — | Supported |
-| Demucs vocal isolation | — | Optional |
-| WhisperX forced alignment | — | Optional |
-| Word playback / review / exports | Supported | Supported |
-| Checkpoint recovery | — | Opt-in |
-| File input limit | 200 MB | 512 MB |
-| Audio duration limit | 1 hour | 4 hours |
-
-The limits above apply to the new file-processing routes. The existing online helper has separate smaller limits and cannot confirm complete source coverage in every case. Browser romanization has a basic Hindi fallback; the computer includes additional script-specific tools. Mixed-language recognition and speaker labels remain model-dependent.
-
-## Deployment and integrations
-
-### GitHub Pages
-
-1. Upload the contents of the project folder to your GitHub repository root, including the `offline-pack.zip` and documentation assets.
-2. In repository **Settings → Pages**, choose **Deploy from a branch**, then `main` and `/ (root)` (or your chosen deployment branch).
-3. Open your published Pages URL. The entry point is `index.html`; `Transcript.html` is the classic workflow.
-
-### Optional trusted YouTube helper
-
-The included `worker/` is the classic Cloudflare helper. Deploy it separately if you need that route:
-
-```bash
-cd worker
-npx wrangler login
-npx wrangler deploy
-```
-
-Paste the deployed HTTPS helper URL in the new studio's YouTube-link settings and confirm trust before sending a key. In the Classic workflow, use the Step 2 helper address field. The helper has its own access, size and provider limitations; upload an authorized audio file or use the computer route when links fail. See [worker setup](worker/README.md) (legacy instructions) and the [studio guide](STUDIO-README.md) for current behavior.
-
-### MCP for compatible AI assistants
-
-The included [MCP server](mcp-server/README.md) supports the advanced `verify_local_audio` tool for authorized local media, plus classic `transcribe_youtube` and `transcribe_audio` tools. The advanced tool needs the computer engine installed. Configure your MCP-compatible client to run the server with that environment's Python executable.
-
-```json
-{
-  "mcpServers": {
-    "transcription-studio": {
-      "command": "/absolute/path/to/.venv/bin/python",
-      "args": ["/absolute/path/to/mcp-server/server.py"]
-    }
-  }
-}
-```
-
-On Windows, use the equivalent `.venv\\Scripts\\python.exe` absolute path (escape backslashes in JSON). See the [MCP guide](mcp-server/README.md) and [skill](mcp-server/SKILL.md) for the classic tools.
-
-## Quality, privacy and trust
-
-The quality report describes evidence rather than an invented accuracy percentage. It distinguishes processing coverage, recognized words, corroboration, unresolved differences and model availability. A fully processed recording can still contain recognition errors.
-
-**Privacy and cost:** The interface keeps provider API keys in session memory. Connecting a provider permits audio to be sent to that provider; the optional contextual review sends disputed text to Groq. Cloud processing can incur charges. Local-only file recognition avoids cloud audio requests. Opt-in computer checkpoints contain transcript evidence and source hashes, are not encrypted, and can be cleared. The local server binds to loopback and validates Host/Origin.
-
-**Media rights:** Process only recordings you are entitled to acquire and use. No source-access bypass or unrestricted link retrieval is promised. A published lyric sheet may not match a particular remix, performance or cover.
-
-## Testing and benchmarks
-
-Run from the project root after installing dependencies:
-
-```bash
-python tests/test_universal.py
-python tests/test_local_service.py
-```
-
-For browser tests install Playwright and Chromium:
-
-```bash
-python -m pip install playwright
-python -m playwright install chromium
-python tests/test_studio_browser.py
-python tests/test_timeline_browser.py
-python tests/test_wizard_browser.py
-python tests/test_restored_workspace.py
-python tests/test_classic_handoff.py
-```
-
-The supplied tests cover sequence order, repetitions, missing boundaries, chunk coverage, checkpoints, local HTTP security, browser WAV decoding, simulated recognition, playback and audit export. These are software regression tests, not evidence of live recognition accuracy. See [test details](tests/README.md).
-
-Measure real-world accuracy with a human-annotated JSON reference and a studio audit export:
-
-```bash
-python benchmark.py human.json transcript-audit.json --output metrics.json
-```
-
-Reference format:
-
-```json
-[{"text": "hello", "start": 0.1, "end": 0.4}]
-```
-
-The benchmark calculates WER, CER, insertions, deletions, substitutions and timing error. Use language-appropriate tokenization and legally obtained test recordings. Report results separately by language, recording type and noise level; no multilingual accuracy benchmark results are bundled.
-
-### Deployment topology
+### Word timing and chunking
 
 ```mermaid
 flowchart LR
-    U[User browser] --> W[GitHub Pages static site]
-    W --> A[Cloud recognition API]
-    W -->|Explicit trust and consent| H[Optional HTTPS helper]
-    H --> A
-    L[Local browser] --> S[Loopback Python service]
-    S --> M[Local AI models]
-    S -->|Only when configured| A
-    classDef red fill:#fdecea,stroke:#e62117,color:#181818
-    class W,S red
+    A[Decode matching file] --> B[35 second audio windows]
+    B --> C[5 second overlap]
+    C --> D[Word-timed recognition]
+    D --> E[Compare alternative ordered sequences]
+    E --> F[Keep each window's owned region]
+    F --> G[Preserve sequence and repair timing]
+    G --> H[Original and transliteration]
 ```
 
-## Project structure
+Browser decoding supports files up to 200 MB and decoded audio up to one hour on the Groq/Deepgram chunk route. Browser codec support varies. The computer service supports files up to 512 MB and recordings up to four hours, with configured limits and optional local models. Other provider routes have smaller file limits. Acoustic alignment is optional in the computer package, not a browser capability. Audio coverage measures processed audio, not word accuracy.
 
-```text
-index.html                Universal Studio interface
-studio.css / studio.js    Browser workspace and consensus pipeline
-Transcript.html           Retained classic YouTube workflow
-server.py                 Local launcher and server
-universal_server.py       Local studio HTTP API
-universal_engine.py       Python audio verification engine
-benchmark.py              Human-reference evaluation
-mcp-server/               MCP server and skill
-requirements*.txt         Core and optional model dependencies
-tests/                    Software regression tests
-docs/readme/              Animated documentation assets
-STUDIO-README.md          Detailed setup and limitations
+## Karaoke
+
+<img src="docs/readme/karaoke-preview.gif" width="100%" alt="Illustrative synchronized word spotlight animation" />
+
+Play & Sing Along uses the playback clock from the matching uploaded media or the embedded YouTube player. Both transcript columns share one word timeline. Clicking a word seeks to its start; seeking, pause, and playback update the spotlight. Gaps without a timed word are not filled by a fabricated highlight. Estimated timings are shown as approximate. Embedded playback and audio access depend on the video and browser.
+
+```mermaid
+sequenceDiagram
+    participant P as Actual player
+    participant T as Ordered timeline
+    participant O as Original words
+    participant R as English letters
+    P->>T: Current playback time
+    T->>T: Find active word by start and end
+    T->>O: Highlight and scroll
+    T->>R: Highlight same word and scroll
+    O->>P: Seek on word click
 ```
 
-## Release boundaries & roadmap
+## Computer package
 
-This release does **not** include calibrated word confidence, singing-specific or syllable-level alignment, full cross-chunk speaker identities, overlapping-speaker separation, or IndicConformer / OpenAI / Gemini audio integration in the new consensus pipeline. OpenAI and Gemini remain available in supported classic routes. The latest UI and legacy-provider handoff regression tests passed with mocked provider responses. Optional Demucs and WhisperX, live provider recognition, actual multilingual benchmarks and Windows/macOS launchers have not been validated end-to-end in the build environment. These are future verification and development priorities, not completed features.
+1. Download [offline-pack.zip](offline-pack.zip) and extract it.
+2. Install Python 3.12 if needed.
+3. Double-click `Open_Transcriber.bat` on Windows. The first run installs dependencies. macOS/Linux users may use `sh start_studio.sh` with a compatible Python environment.
+4. The loopback server opens `http://127.0.0.1:8765/` in your browser, showing the same Classic interface.
+5. Select the computer/no-key path for local Whisper. A local audio file is recommended; authorized YouTube acquisition may fail due to source availability.
+6. For optional Demucs and WhisperX, run `Install_Maximum_Models.bat`. These may require substantial downloads, processing time and compatible hardware.
 
-## Documentation & support
+The local engine retains chunking, optional vocal isolation, optional acoustic alignment, source fingerprinting, bounded retries, quality reports and internal checkpoint support. Classic does not expose every old dashboard configuration: checkpoint opt-in and some detailed model controls remain engine-level settings. API keys are held in the browser tab and sent to a provider or explicitly trusted helper only as needed. Selecting the local no-key route does not send cloud credentials. The helper receives a key only after approval for the link request.
 
-- [Detailed studio guide](STUDIO-README.md) — setup, architecture, limits and diagnostics.
-- [Test guide](tests/README.md) — regression scope and instructions.
-- [MCP guide](mcp-server/README.md) — assistant integration.
-- [Contribution guide](CONTRIBUTING.md) · [Legacy documentation](CLASSIC-README.md) (historical) · [Classic demo video](youtube-transcribe-demo-4k.mp4).
-- [Static graphics](docs/readme/studio-hero.png) · [Static workflow](docs/readme/verification-flow.png) · [Static karaoke preview](docs/readme/karaoke-preview.png) · [Static wizard preview](docs/readme/three-step-tour.png) — non-animated alternatives.
+## Deployment
 
-If reporting an issue, include the operating system, processing mode, provider, relevant timestamp and non-sensitive error details. Do not post API keys, private media or confidential transcripts.
+```mermaid
+flowchart TD
+    A[GitHub Pages: index.html / Transcript.html] --> B[Classic browser]
+    B --> C[Provider APIs]
+    B -->|Optional trusted HTTPS helper| D[Cloudflare Worker]
+    D --> C
+    E[Computer launcher] --> F[Loopback HTTP server]
+    F --> G[Same Classic HTML]
+    F --> H[Local verification engine]
+    H --> I[Optional installed models]
+```
 
----
+Upload the complete GitHub package contents to the repository. In GitHub Pages settings publish the repository root from the desired branch. Keep both HTML files identical; the root URL opens Classic directly. Deploy the updated `worker/worker.js` separately if you use the helper, following [worker setup](worker/README.md). The helper uses the new `mode` field and can return an additional `third_words` observation. Use only a helper you control or trust and media you are authorized to process.
 
-<div align="center">
+## Verification
 
-**Built for people who care about every word.**
+```mermaid
+flowchart LR
+    A[Timestamp collision / reversal] --> B[Sequence regression]
+    C[WAV fixture] --> D[Mock recognition tests]
+    E[Simulated video clock] --> F[Karaoke tests]
+    G[Local HTTP requests] --> H[Loopback security tests]
+    B --> I[Release checks]
+    D --> I
+    F --> I
+    H --> I
+```
 
-Created by [Abhishek Ramnarayan Mishra](https://github.com/abhishek6966) · [MIT License](LICENSE)
+Run `python tests/test_universal.py`, `python tests/test_local_service.py`, `python tests/test_timeline_browser.py`, and `python tests/test_classic_sequence.py`. Browser tests require Playwright and Chromium. `benchmark.py` measures errors against supplied human-annotated ground truth. The tests exercise sequence preservation, timed repetitions, boundary recovery, timing repair, mock recognition with real WAV decoding, karaoke playback logic, and local service access. They do not establish live recognition accuracy on songs. Optional models and Windows launchers have not been exercised end-to-end in this build environment.
 
-</div>
+**Accuracy limits:** no ASR model guarantees perfect lyrics for every recording or language. Captions can be inaccurate, recognition models can share mistakes, and estimated timings cannot be represented as acoustic truth. Use the exact authorized recording, Maximum mode, and human review of unresolved words for critical karaoke results. No measured accuracy percentage is claimed without independent ground truth.
 
+## Repository guide
+
+| Path | Purpose |
+|---|---|
+| `index.html`, `Transcript.html` | Same original Classic user interface and browser engine |
+| `universal_engine.py`, `universal_server.py` | Computer processing and local job endpoints |
+| `server.py` | Local HTTP server |
+| `worker/` | Optional deployed helper |
+| `mcp-server/` | Legacy and advanced local audio MCP tools |
+| `docs/readme/` | Locally bundled animated graphics and UI captures |
+| `tests/` | Deterministic software regression suite |
+| `benchmark.py` | Reference-based accuracy metrics |
+
+See [license](LICENSE) and [contribution guide](CONTRIBUTING.md). Animated graphics illustrate the workflow; mock screenshots are not real verified song results.

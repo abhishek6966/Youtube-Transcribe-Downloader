@@ -857,7 +857,7 @@ def second_buckets(entries):
     previous = None
     def key(w):
         return ''.join(c for c in w.casefold() if c.isalnum() or '\u0900' <= c <= '\u0d7f')
-    for e in sorted(entries, key=lambda e: e['start']):
+    for e in entries:
         words = strip_cue_marks(e['text']).split()
         if not words:
             continue
@@ -880,7 +880,9 @@ def second_buckets(entries):
             tokens.append((tm,word))
         previous=(start+dur,words,e.get('audio',False))
     buckets={}
-    for tm,word in sorted(tokens,key=lambda x:x[0]):
+    last=-1
+    for tm,word in tokens:
+        tm=max(last+.001,tm);last=tm
         buckets.setdefault(int(math.floor(tm)),[]).append(word)
     return [(sec,' '.join(buckets[sec])) for sec in sorted(buckets)]
 

@@ -4,7 +4,7 @@ import os, re, json, math, hashlib, tempfile, shutil, subprocess, sys, wave, uni
 from pathlib import Path
 from difflib import SequenceMatcher
 from collections import Counter
-VERSION = 'universal-1.0.0'
+VERSION = 'classic-1.1.0'
 RATE = 16000
 CHUNK, OVERLAP = 35, 5
 MAX_SECONDS = 4 * 3600
@@ -13,6 +13,27 @@ LANG_CODES={'hindi':'hi','english':'en','spanish':'es','french':'fr','german':'d
 
 def norm(s):
     return ''.join(c for c in unicodedata.normalize('NFKC', str(s)).casefold() if not unicodedata.category(c).startswith(('P','Z','C')))
+
+def repair_sequence(words):
+    """Keep spoken sequence, repair non-monotonic times without reordering text."""
+    out=[dict(w) for w in words]; i=0
+    while i<len(out):
+        j=i+1; high=out[i]['start']
+        while j<len(out) and out[j]['start']<=high+.0001:
+            high=max(high,out[j]['start']);j+=1
+        if j>i+1:
+            lo=max(out[i-1]['start']+.001 if i else 0,min(w['start'] for w in out[i:j]))
+            hi=out[j]['start'] if j<len(out) else max(w['end'] for w in out[i:j])
+            hi=max(hi,lo+.001*(j-i));step=(hi-lo)/(j-i)
+            for k in range(i,j):out[k].update(start=lo+step*(k-i),end=lo+step*(k-i+1),precision='estimated',review='review')
+        i=j
+    for i,w in enumerate(out):
+        a,b=w['start'],w['end']
+        if i and a<=out[i-1]['start']:a=out[i-1]['start']+.001
+        if i+1<len(out) and out[i+1]['start']>a:b=min(b,out[i+1]['start'])
+        b=max(a+.0001,b)
+        if a!=w['start'] or b!=w['end']:w.update(start=a,end=b,precision='estimated',review='review')
+    return out
 
 def clean(words, duration, source='', offset=0):
     out=[]
@@ -25,12 +46,11 @@ def clean(words, duration, source='', offset=0):
             q={'text':t,'start':round(a+offset,3),'end':round(b+offset,3),'source':source,'precision':w.get('precision','word'),'confidence':w.get('confidence'), 'language':w.get('language'), 'speaker':w.get('speaker')}
             out.append(q)
         except (ValueError,TypeError,KeyError): continue
-    out.sort(key=lambda w:(w['start'],w['end']))
     result=[]
     for w in out:
-        if result and norm(result[-1]['text'])==norm(w['text']) and abs(result[-1]['start']-w['start'])<.12 and abs(result[-1]['end']-w['end'])<.2: continue
+        if result and norm(result[-1]['text'])==norm(w['text']) and abs(result[-1]['start']-w['start'])<.025 and abs(result[-1]['end']-w['end'])<.04: continue
         result.append(w)
-    return result
+    return repair_sequence(result)
 
 def mid(w): return (w['start']+w['end'])/2
 
@@ -86,8 +106,7 @@ def reconcile(tracks):
                 q=supported(c); q['correction']='recovered omitted word';result.append(q)
             else: issues.append({'kind':'possible omission','start':c[0]['start'],'end':c[0]['end'],'alternatives':c})
         if i<len(base): result.append(supported(columns[i]))
-    result.sort(key=lambda w:(w['start'],w['end']))
-    return result,issues
+    return repair_sequence(result),issues
 
 def windows(duration):
     s=0
@@ -98,13 +117,13 @@ def windows(duration):
 
 def stitch(words):
     out=[]
-    for w in sorted(words,key=lambda q:(q['start'],q['end'])):
-        if out and norm(out[-1]['text'])==norm(w['text']) and abs(mid(out[-1])-mid(w))<.18 and min(out[-1]['end'],w['end'])>max(out[-1]['start'],w['start']):
+    for w in words:
+        if out and norm(out[-1]['text'])==norm(w['text']) and abs(out[-1]['start']-w['start'])<.025 and abs(out[-1]['end']-w['end'])<.04 and min(out[-1]['end'],w['end'])>max(out[-1]['start'],w['start']):
             if w.get('agreement',0)>out[-1].get('agreement',0):out[-1]=w
             continue
         if out and w['start']<out[-1]['start']: w['review']='review'
         out.append(w)
-    return out
+    return repair_sequence(out)
 
 def quality(words, issues, duration, processed, providers, warnings, source_hash, mode, reference=''):
     if reference:
@@ -318,13 +337,14 @@ def run(path,opts,progress=lambda *a:None,models=None,cache_dir=None):
                             if issue['kind']!='possible omission' or not ra<=mid(issue)<=rb:continue
                             alternate=next((x for x in extra if any(match(x,y) and x['source']!=y['source'] for y in issue['alternatives'])),None)
                             if alternate and not any(match(alternate,w) for w in merged):
-                                q=dict(alternate,observations=issue['alternatives']+[alternate],review='review',agreement=2,correction='targeted omission recovery');merged.append(q);disagreements.remove(issue)
-                        merged.sort(key=lambda w:(w['start'],w['end']))
+                                q=dict(alternate,observations=issue['alternatives']+[alternate],review='review',agreement=2,correction='targeted omission recovery');insert=next((i for i,w in enumerate(merged) if w['start']>q['start']),len(merged));merged.insert(insert,q);disagreements.remove(issue)
+                        merged=repair_sequence(merged)
                     except Exception:localwarn.append('Targeted retry unavailable.')
             if mode=='maximum' and caps['forced_alignment']:
                 try:
                     if not models.align(chunk,merged,lang_found,a) and merged:localwarn.append('No acoustic alignment accepted for this chunk.')
                 except Exception:localwarn.append('Acoustic alignment unavailable for one or more chunks/languages.')
+            merged=repair_sequence(merged)
             selected=[w for w in merged if lo<=mid(w)<hi or hi==duration and mid(w)==hi]
             # Energy is only a heuristic, not a vocal detector. Audit long untranscribed spans.
             if mode!='fast':

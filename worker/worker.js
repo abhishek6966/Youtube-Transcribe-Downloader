@@ -148,6 +148,7 @@ async function captions(url, lang) {
       const line = {start, dur, text};
       if (raw.length === text.split(/\s+/).length && raw.every((w,i) => Number.isFinite(w.t) || i === 0)) {
         line.wt = raw.map(w => start+(w.t||0)/1000);
+        line.precision = raw.some((w,i)=>i>0&&w.t===raw[i-1].t)?"estimated":"caption-word";
       }
       lines.push(line);
     }
@@ -173,16 +174,17 @@ async function whisperPass(provider,key,audio,filename,model,lang,title) {
   const res=await fetch(PROVIDERS[provider],{method:"POST",headers:{Authorization:`Bearer ${key}`},body:out});
   return {res,data:await res.json()};
 }
-async function forwardToWhisper(provider,key,audio,filename,model,lang,accuracy=true,title="") {
+async function forwardToWhisper(provider,key,audio,filename,model,lang,accuracy=true,title="",mode="advanced") {
   model=model||(provider==="groq"?"whisper-large-v3":"whisper-1");
-  let {res,data}=await whisperPass(provider,key,audio,filename,model,lang,title);
+  let {res,data}=await whisperPass(provider,key,audio,filename,model,lang,"");
   if(!res.ok)return json({ok:false,error:data?.error?.message||`The provider said no (${res.status}).`},res.status);
-  let verification_words=null;
+  let verification_words=null,third_words=null;
   if(accuracy&&Array.isArray(data.words)&&data.words.length){
     const alternate=provider==="groq"?(model==="whisper-large-v3"?"whisper-large-v3-turbo":"whisper-large-v3"):model;
     try{const second=await whisperPass(provider,key,audio,filename,alternate,lang,"");if(second.res.ok&&Array.isArray(second.data.words)&&second.data.words.length)verification_words=second.data.words;}catch(e){/* primary remains usable */}
   }
-  return json({ok:true,provider,...data,verification_words});
+  if(mode==="maximum"&&verification_words){try{const third=await whisperPass(provider,key,audio,filename,model,lang,"");if(third.res.ok&&Array.isArray(third.data.words)&&third.data.words.length)third_words=third.data.words;}catch(e){}}
+  return json({ok:true,provider,...data,verification_words,third_words});
 }
 
 // The YouTube player API needs an API key, but we NEVER hard-code one
@@ -366,7 +368,7 @@ async function transcribeLink(request) {
   if (provider === "gemini") {
     return transcribeWithGemini(key, file, (body.model || "").toString(), lang, title);
   }
-  return forwardToWhisper(provider,key,file,file.name,(body.model||"").toString(),lang,body.accuracy!==false,title);
+  return forwardToWhisper(provider,key,file,file.name,(body.model||"").toString(),lang,body.accuracy!==false,title,body.mode==='maximum'?'maximum':'advanced');
 }
 
 export default {
