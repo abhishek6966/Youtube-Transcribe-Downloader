@@ -2017,7 +2017,7 @@ On the top of the page there is one small bar: **paste your API key, tap Fetch &
 |---|---|---|
 | **Groq** | `gsk_…` | Fastest pick — Whisper `large-v3-turbo`, free tier available |
 | **OpenAI** | `sk-…` / `sk-proj-…` | Whisper `whisper-1` |
-| **Google Gemini** | `AIza…` | Key is recognised (audio transcription via Gemini is not built in yet) |
+| **Google Gemini** | `AIza…` | Key is recognised; compatible audio and public-video recognition depend on the available models. |
 | **OpenRouter** | `sk-or-…` | **One key opens models from 100+ providers** |
 | **DeepSeek** | `sk-…` | Recognised, but text-only — it cannot transcribe audio |
 | **NVIDIA, Anthropic, xAI, Perplexity, Fireworks, Cerebras, Zhipu, Hugging Face** | their own key shapes | Recognised; transcription depends on the provider |
@@ -2697,11 +2697,88 @@ HONEST LIMITS
         function commitProgressive(q,words){q.complete=true;var active=!!karaoke;if(!q.published)rememberAudio(q.file||null);state.entries=entriesFromWords(repairSequence(words));state.enChecked=null;state.wordsChecked=false;renderEntries();if(active&&q.published&&q.file)startKaraoke(true);}
         // Google Gemini's documented public YouTube URL input is a separate provider route.
         // The model supplies estimated timestamps, not ASR acoustic word boundaries.
-        function geminiLinkAvailable(){return !!($('way1-card').getAttribute('aria-pressed')==='true'&&ai.connected&&ai.provider&&ai.provider.type==='gemini'&&(ai.audioModel||ai.chatModel));}
+        // The live catalog lists API methods, not media modalities. Restrict URL candidates
+        // to documented general-purpose Gemini model families; specialized audio/text models
+        // may still be offered for their other routes, but never receive a YouTube URL.
+        function geminiVideoModels(models){
+          var ids=Array.from(new Set(models||[])).filter(m=>typeof m==='string'&&/^gemini-(?:[234](?:\.\d+)?-(?:flash(?:-lite)?|pro|hydrogen|argon|neon|carbon)(?:-[a-z0-9.-]+)?)$/i.test(m)&&!/(?:transcri|native-audio|audio|tts|live|image|vision-only|embedding|robot|computer-use|thinking-only|deep-research)/i.test(m));
+          function rank(m){var v=Number((/^gemini-(\d+(?:\.\d+)?)/i.exec(m)||[])[1])||0;return v*100+(/hydrogen|flash(?!-lite)/i.test(m)?40:/argon|flash-lite/i.test(m)?20:0)-(/preview|experimental|exp-/i.test(m)?12:0);}
+          return ids.sort((a,b)=>rank(b)-rank(a)||a.localeCompare(b));
+        }
+        function geminiLinkAvailable(){return !!($('way1-card').getAttribute('aria-pressed')==='true'&&ai.connected&&ai.provider&&ai.provider.type==='gemini'&&geminiVideoModels(ai.models).length);}
+        function safeGeminiText(s,key){s=String(s||'');if(key)s=s.split(key).join('[redacted]');return s.replace(/AIza[\w-]{20,}/g,'[redacted]').replace(/[\r\n\t]+/g,' ').slice(0,340);}
+        function geminiHTML(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
         function parseGeminiLinkWords(text,duration){var data=JSON.parse(String(text).trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'')),words=Array.isArray(data)?data:data.words;if(!Array.isArray(words)||!words.length||words.length>20000)throw Error('No timed result');var out=[],prev=-1;for(var w of words){var a=w.start,b=w.end,t=typeof w.word==='string'?w.word.trim():'';if(typeof a!=='number'||typeof b!=='number'||!Number.isFinite(a)||!Number.isFinite(b)||a<0||b<=a||a<prev||!t||t.length>160||/\s/u.test(t)||(duration>0&&b>duration+1))throw Error('Invalid or unordered estimated timings');prev=a;out.push({word:t,start:a,end:b,precision:'estimated',estimated:true});}return repairSequence(out);}
-        async function geminiLinkTranscript(id,lang){var original=state.entries,txt=transcriptEl.value,key=ai.key,model=ai.audioModel||ai.chatModel,limit=state.lengthSec||0;var prompt='For this authorized recording, transcribe audible spoken or sung words in their original language, never translate. Return ONLY a JSON array of objects with word (one lexical word), start and end (seconds from the start of the video). Preserve actual sequence and repetitions. Do not use remembered lyrics, captions, descriptions or guesses. Omit unclear sounds rather than inventing words. Use estimated timestamps, preserve silence, and never place many words at one timestamp. '+(lang?'Requested language hint: '+lang+'. ':'')+'If you cannot hear or process the audio, return [].';var body={contents:[{parts:[{fileData:{fileUri:'https://www.youtube.com/watch?v='+id}},{text:prompt}]}],generationConfig:{responseMimeType:'application/json'}};var d=await withTimeout(fetch(ai.provider.base+'/models/'+encodeURIComponent(model)+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)}),420000).then(async function(r){if(!r.ok)throw Error('Gemini HTTP '+r.status);return r.json();});if(state.videoId!==id||state.entries!==original||transcriptEl.value!==txt)return false;var c=d.candidates&&d.candidates[0];if(!c||c.finishReason&&c.finishReason!=='STOP')throw Error('Incomplete provider response');var words=parseGeminiLinkWords((c.content?.parts||[]).filter(p=>!p.thought).map(p=>p.text||'').join(''),limit);rememberAudio(null);state.entries=entriesFromWords(words);state.enChecked=null;state.wordsChecked=false;lastReport={provider:'Gemini YouTube URL input',accuracy:null,word_count:words.length,words:words,warning:'Model-generated estimated timing; no independent acoustic alignment or complete coverage verified.'};$('audit-btn').hidden=false;renderEntries();setStatus(statusEl,'ok','Gemini processed the public video URL. These word times are model estimates, not acoustic timing. Review the result and use matching audio for precision karaoke.');return true;}
-        function geminiFailureHint(err){var message=String(err&&err.message||'');var code=(/Gemini HTTP (\d{3})/.exec(message)||[])[1];if(code==='429')return 'Gemini returned HTTP 429: quota or rate limit reached. Check your Google AI Studio quota before retrying.';if(code==='401'||code==='403')return 'Gemini returned HTTP '+code+': credentials, project permissions or video access were rejected. Check your Gemini key and project.';if(code==='400'||code==='404')return 'Gemini returned HTTP '+code+': the selected model, request or public video may not be supported. Try another video-capable Gemini model or use matching media.';if(code&&Number(code)>=500)return 'Gemini returned HTTP '+code+': provider service error. Retry later or use matching media.';if(code)return 'Gemini returned HTTP '+code+'. Check the provider or use matching media.';if(/No timed result|Invalid or unordered|Incomplete provider|JSON|Unexpected token|Unexpected end/i.test(message))return 'Gemini did not return a complete, usable timed transcript. No estimated words were fabricated; try matching media.';if(/timeout/i.test(message))return 'Gemini did not finish before the request timeout. Try matching media or retry.';return 'Gemini link recognition failed. Check network access and model compatibility, or use matching media.';}
-        async function retryGeminiLink(){var id=state.videoId,btn=$('fetch-btn');if(!geminiLinkAvailable()||!id||btn.disabled)return;if(!confirm('Send the public video URL to Google Gemini? Continue only for content you have permission to process. Word times are estimates.'))return;btn.disabled=true;startProcessing();setStatus(statusEl,'info','Gemini is processing the public video URL. Word times will be estimates.');try{var ok=await geminiLinkTranscript(id,(langSelect.value||'').trim().toLowerCase());if(!ok&&state.videoId===id)showNoCaptionFallback('The video or transcript changed during processing. Retry when ready.');}catch(e){if(state.videoId===id)showNoCaptionFallback(geminiFailureHint(e));}finally{btn.disabled=false;stopProcessing();}}
+        async function geminiVideoRequest(model,route,id,prompt,key){
+          var url='https://www.youtube.com/watch?v='+id,base='https://generativelanguage.googleapis.com/v1beta';
+          var body=route==='interactions'?{model:model,input:[{type:'video',uri:url},{type:'text',text:prompt}],store:false}:{contents:[{parts:[{fileData:{fileUri:url}},{text:prompt}]}]};
+          var controller=new AbortController(),timer=setTimeout(()=>controller.abort(),150000),d;
+          try{
+            var r=await fetch(base+(route==='interactions'?'/interactions':'/models/'+encodeURIComponent(model)+':generateContent'),{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body),signal:controller.signal});
+            if(!r.ok){var msg='';try{var errorBody=await r.json();msg=safeGeminiText(errorBody.error?.message||errorBody.message,key);}catch(_){}var e=Error('Gemini HTTP '+r.status);e.http=r.status;e.detail=msg;throw e;}
+            d=await r.json();
+          }catch(e){if(e.name==='AbortError')throw Error('Gemini request timeout');throw e;}finally{clearTimeout(timer);}
+          var result='';
+          if(route==='interactions'){
+            if(d.status!=='completed'){var e=Error('Incomplete provider response');e.detail=safeGeminiText(d.error?.message||d.status,key);throw e;}
+            result=(d.steps||[]).filter(x=>x.type==='model_output').flatMap(x=>x.content||[]).filter(x=>x.type==='text').map(x=>x.text||'').join('');
+            if(!result&&typeof d.output_text==='string')result=d.output_text;
+          }else{
+            var c=d.candidates&&d.candidates[0];if(!c||c.finishReason&&c.finishReason!=='STOP'){var e=Error('Incomplete provider response');e.detail=safeGeminiText(d.promptFeedback?.blockReason||c?.finishReason,key);throw e;}
+            result=(c.content?.parts||[]).filter(p=>!p.thought).map(p=>p.text||'').join('');
+          }
+          return result;
+        }
+        async function geminiLinkTranscript(id,lang){
+          var original=state.entries,txt=transcriptEl.value,key=ai.key,connection=ai,limit=state.lengthSec||0;
+          if(!/^[\w-]{11}$/.test(id))throw Error('Invalid video ID');
+          var models=geminiVideoModels(ai.models);if(models.includes(ai.audioModel))models=[ai.audioModel,...models.filter(m=>m!==ai.audioModel)];
+          if(!models.length)throw Error('No compatible video model');
+          var prompt='For this authorized recording, transcribe audible spoken or sung words in their original language, never translate. Return ONLY a JSON array of objects with word (one lexical word), start and end (seconds from the start of the video). Preserve actual sequence and repetitions. Do not use remembered lyrics, captions, descriptions or guesses. Omit unclear sounds rather than inventing words. Use estimated timestamps, preserve silence, and never place many words at one timestamp. '+(lang?'Requested language hint: '+lang+'. ':'')+'If you cannot hear or process the audio, return [].';
+          var attempts=[],last,plans=[];
+          // Prefer the current documented video URL interface. For a compatibility
+          // rejection only, try the legacy GenerateContent form once, then other
+          // catalog candidates. Never retry access, quota or content refusals.
+          models.slice(0,3).forEach((m,i)=>{plans.push([m,'interactions']);if(i===0)plans.push([m,'generateContent']);});
+          function valid(){return state.videoId===id&&state.entries===original&&transcriptEl.value===txt&&ai===connection&&ai.key===key;}
+          for(var plan of plans){
+            if(!valid())return false;
+            var model=plan[0],route=plan[1];
+            setStatus(statusEl,'info','Gemini video input: trying '+geminiHTML(model)+' ('+route+', '+(attempts.length+1)+'/'+plans.length+'). Word timing will be estimated.');
+            try{
+              var result=await geminiVideoRequest(model,route,id,prompt,key);
+              if(!valid())return false;
+              var words=parseGeminiLinkWords(result,limit);
+              attempts.push({model,route,status:'accepted'});
+              rememberAudio(null);state.entries=entriesFromWords(words);state.enChecked=null;state.wordsChecked=false;
+              lastReport={provider:'Gemini YouTube URL input',model:model,api:route,attempts:attempts,accuracy:null,word_count:words.length,words:words,warning:'Model-generated estimated timing; no independent acoustic alignment or complete coverage verified.'};
+              $('audit-btn').hidden=false;renderEntries();
+              setStatus(statusEl,'ok','Gemini processed the public video URL with '+geminiHTML(model)+'. Word times are estimates, not acoustic timing. Review the result and use matching audio for precision karaoke.');return true;
+            }catch(e){
+              if(!valid())return false;
+              last=e;attempts.push({model,route,status:e.http||'invalid response',detail:safeGeminiText(e.detail,key)});
+              // Only retry compatibility errors, not permission, video availability,
+              // copyright, policy, quota, incomplete output or explicit refusals.
+              if(![400,404].includes(e.http)||/copyright|recitation|safety|policy|blocked|prohibited|permission|access denied|private|unlisted|age.restrict|not public|video.{0,30}(?:unavailable|not found)|quota|billing|region|api.key/i.test(e.detail||''))break;
+            }
+          }
+          last=last||Error('No compatible video model');last.attempts=attempts;throw last;
+        }
+        function geminiFailureHint(err){
+          var message=String(err&&err.message||''),code=err?.http||Number((/Gemini HTTP (\d{3})/.exec(message)||[])[1]),hint;
+          if(code===429)hint='Gemini returned HTTP 429: quota or rate limit reached. Check Google AI Studio quota.';
+          else if(code===401||code===403)hint='Gemini returned HTTP '+code+': credentials, project permissions or video access were rejected.';
+          else if(code===400||code===404)hint='Gemini returned HTTP '+code+': the available video model, request or public video was rejected.';
+          else if(code>=500)hint='Gemini returned HTTP '+code+': provider service error. Retry later or use matching media.';
+          else if(code)hint='Gemini returned HTTP '+code+'.';
+          else if(/No compatible video model/i.test(message))hint='No supported general-purpose video model was found in your live Gemini catalog.';
+          else if(/No timed result|Invalid or unordered|Incomplete provider|JSON|Unexpected token|Unexpected end/i.test(message))hint='Gemini did not return a complete, usable timed transcript. No words were fabricated.';
+          else if(/timeout/i.test(message))hint='Gemini did not finish before the request timeout.';
+          else hint='Gemini link recognition failed. Check network access or use matching media.';
+          var attempts=(err?.attempts||[]).map(a=>a.model+' / '+a.route+' — '+a.status+(a.detail?': '+a.detail:'')).join(' | ');
+          return geminiHTML(hint+(attempts?' Attempts: '+attempts:err?.detail?' '+safeGeminiText(err.detail,ai.key):'')+' Use matching authorized media if the link cannot be processed.');
+        }
+        async function retryGeminiLink(){var id=state.videoId,btn=$('fetch-btn');if(!geminiLinkAvailable()||!id||btn.disabled)return;if(!confirm('Send the public video URL to Google Gemini? Continue only for content you have permission to process. Word times are estimates. Up to four compatible requests may be attempted.'))return;btn.disabled=true;startProcessing();setStatus(statusEl,'info','Gemini is processing the public video URL. Word times will be estimates.');try{var ok=await geminiLinkTranscript(id,(langSelect.value||'').trim().toLowerCase());if(!ok&&state.videoId===id)showNoCaptionFallback('The video or transcript changed during processing. Retry when ready.');}catch(e){if(state.videoId===id)showNoCaptionFallback(geminiFailureHint(e));}finally{btn.disabled=false;stopProcessing();}}
         function showNoCaptionFallback(detail){var canListen=!!(localCaps||dgKey||ai.connected&&(ai.audioModel||geminiLinkAvailable()));setStatus(statusEl,'warn','No usable captions. The embedded YouTube player cannot send its sound to the AI. '+(canListen?'Choose the matching recording to generate new captions from audio, progressively where supported.':'Connect a listening model or use the computer package to recognize the matching recording.')+(detail?' <span class="fallback-detail">'+detail+'</span>':'')+' <button type="button" class="linklike" id="no-caption-audio">'+(canListen?'Choose matching media':'Connect listening AI')+'</button> · <button type="button" class="linklike" id="no-caption-helper">Configure trusted helper</button> · <button type="button" class="linklike" id="no-caption-gemini">'+(geminiLinkAvailable()?'Retry Gemini link':'Connect Gemini for link input')+'</button>');if(statusEl._statusTimer){clearTimeout(statusEl._statusTimer);statusEl._statusTimer=null;} $('no-caption-audio').onclick=function(){if(canListen)audioInput.click();else $('back-2').click();};$('no-caption-helper').onclick=function(){$('back-2').click();};$('no-caption-gemini').onclick=function(){if(geminiLinkAvailable())retryGeminiLink();else $('back-2').click();};if(canListen){$('audio-hint').style.display='';$('audio-hint').classList.add('drag');setTimeout(()=>{$('audio-hint').classList.remove('drag');},7000);}else showOfflineBox();}
 
         function rememberAudio(file){var a=$('local-audio-player');if(a){a.pause();a.remove();}if(lastAudioURL)URL.revokeObjectURL(lastAudioURL);lastAudioFile=file;lastAudioVideo=state.videoId;lastAudioURL=file?URL.createObjectURL(file):null;}
@@ -2787,9 +2864,9 @@ HONEST LIMITS
           }else if(WORKER_URL){
             el.textContent="Worker is set - captions come through your worker first. Connect a Groq, OpenAI or Gemini key in Step 2 and it can also transcribe links from their sound.";
           }else if(geminiLinkAvailable()){
-            el.textContent="Gemini can attempt public YouTube URL transcription when captions are missing. Its timestamps are estimates. Matching audio is recommended for precise karaoke.";
+            el.textContent="Gemini can try compatible video models automatically when captions are missing. Word times are estimates. Matching audio is recommended for precise karaoke.";
           }else{
-            el.textContent="No audio helper set. YouTube links can only return captions here. If unavailable, choose the matching authorized audio/video file; compatible audio engines generate new captions as chunks finish. Caption timings are not audio-verified. ~ marks estimates; shared ranges use approximate spotlight where possible. Matching audio is needed for exact timing.";
+            el.textContent="No audio helper or compatible Gemini video model set. YouTube links can only return captions here. If unavailable, choose the matching authorized audio/video file; compatible audio engines generate new captions as chunks finish. Caption timings are not audio-verified. ~ marks estimates; shared ranges use approximate spotlight where possible. Matching audio is needed for exact timing.";
           }
         }
         var apiStatusEl=$("api-status");
@@ -2848,11 +2925,11 @@ HONEST LIMITS
         function fetchModelsFor(p, key){
           var live;
           if(p.type==="gemini"){
-            live=withTimeout(fetch(p.base+"/models", { headers:{ "x-goog-api-key":key } }), 12000).then(jsonOrThrow).then(function(d){
-              return (d.models||[]).filter(function(m){
-                return !m.supportedGenerationMethods || m.supportedGenerationMethods.indexOf("generateContent")>=0;
-              }).map(function(m){ return String(m.name||"").replace(/^models\//,""); }).filter(Boolean);
-            });
+            live=(async function(){var result=[],token="",seen=new Set();for(var page=0;page<5;page++){
+              var d=await withTimeout(fetch(p.base+"/models"+(token?"?pageToken="+encodeURIComponent(token):""),{headers:{"x-goog-api-key":key}}),12000).then(jsonOrThrow);
+              (d.models||[]).forEach(function(m){if(!m.supportedGenerationMethods||m.supportedGenerationMethods.indexOf("generateContent")>=0){var id=String(m.name||"").replace(/^models\//,"");if(id)result.push(id);}});
+              token=d.nextPageToken||"";if(!token||seen.has(token))break;seen.add(token);
+            }return Array.from(new Set(result));})();
           }else{
             var headers={ "Authorization":"Bearer "+key };
             if(p.type==="anthropic"){
@@ -2881,7 +2958,8 @@ HONEST LIMITS
           if(low.indexOf("preview")>=0||low.indexOf("-exp")>=0) s-=6;
           return s;
         }
-        function rankAudioModels(models){
+        function rankAudioModels(models,provider){
+          if(provider&&provider.type==="gemini")return [...new Set([...geminiVideoModels(models),...models.filter(m=>/^gemini-.*transcri/i.test(m))])];
           var pref=["whisper-large-v3","whisper-large-v3-turbo","gpt-4o-mini-transcribe","gpt-4o-transcribe","whisper-1","distil-whisper","parakeet","canary"];
           var audio=models.filter(function(m){ return /whisper|transcri|parakeet|canary/.test(m.toLowerCase()); });
           audio.sort(function(a,b){
@@ -2902,8 +2980,8 @@ HONEST LIMITS
           $("api-row").style.display="none";
           ai.chatModels=ai.models.filter(function(m){ return !isNotChat(m); });
           ai.chatModels.sort(function(a,b){ return scoreChat(b)-scoreChat(a); });
-          ai.audioModels=rankAudioModels(ai.models);
-          if(!ai.audioModel && ai.audioModels.length) ai.audioModel=ai.audioModels[0];
+          ai.audioModels=rankAudioModels(ai.models,ai.provider);
+          if(!ai.audioModels.includes(ai.audioModel)) ai.audioModel=ai.audioModels[0]||"";
           /* The Step 3 dropdown is the LISTENING model - the one that hears
              the sound and writes the words down. Only listening models
              (Whisper and friends) are ever offered here, never a chat-only
@@ -2915,7 +2993,7 @@ HONEST LIMITS
             ai.audioModels.forEach(function(m, idx){
               var opt=document.createElement("option");
               opt.value=m;
-              opt.textContent=prettyModel(m)+(idx===0?" \u2014 best for listening":"");
+              opt.textContent=prettyModel(m)+(ai.provider.type==="gemini"?(geminiVideoModels([m]).length?" — video candidate":" — audio only"):idx===0?" \u2014 best for listening":"");
               if(m===ai.audioModel) opt.selected=true;
               sel.appendChild(opt);
             });
@@ -3031,7 +3109,7 @@ HONEST LIMITS
             fetchModelsFor(chain[i], key).then(function(models){
               if(!models.length) throw new Error("empty");
               ai.key=key; ai.provider=chain[i]; ai.models=models; ai.connected=true;
-              ai.audioModels=rankAudioModels(models);
+              ai.audioModels=rankAudioModels(models,ai.provider);
               ai.audioModel=ai.audioModels[0]||"";
               var chatModels=models.filter(function(m){ return !isNotChat(m); });
               chatModels.sort(function(a,b){ return scoreChat(b)-scoreChat(a); });
@@ -4279,7 +4357,7 @@ async function classicDG(blob,key,lang){const q=new URLSearchParams({model:'nova
             finish(false);
           }).catch(async function(err){
             if(state.videoId!==id)return;
-            if(geminiLinkAvailable()&&confirm('No captions found. Send the public video URL to Google Gemini for estimated transcription? Continue only for content you have permission to process.')){
+            if(geminiLinkAvailable()&&confirm('No captions found. Send the public video URL to Google Gemini for estimated transcription? Continue only for content you have permission to process. Up to four compatible requests may be attempted.')){
               setStatus(statusEl,'info','Gemini is processing the video URL. Word times will be estimates.');
               try{if(await geminiLinkTranscript(id,lang))return;if(state.videoId!==id)return;showNoCaptionFallback('The video or transcript changed during processing. Retry when ready.');return;}catch(e){if(state.videoId!==id)return;showNoCaptionFallback(geminiFailureHint(e));return;}
             }

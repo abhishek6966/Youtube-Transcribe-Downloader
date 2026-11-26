@@ -42,7 +42,7 @@ The embedded YouTube player does not expose audio samples to this page. A Groq k
 |---|---|
 | Groq / Deepgram + matching authorized audio or video file | Recognize overlapping audio chunks and populate both scripts as chunks finish. |
 | Computer + matching authorized recording | Local recognition with progressive job updates; optional installed models improve alignment. |
-| Connected Gemini + public YouTube URL | After consent, attempt direct video-input recognition using Google's supported YouTube URL input. Model-generated word times are explicitly estimated; availability and completeness depend on provider/model. |
+| Connected Gemini + public YouTube URL | After consent, automatically select a general-purpose video candidate from the live Gemini catalog, excluding audio-only models, and attempt direct video-input recognition. Model-generated word times are explicitly estimated; availability and completeness depend on provider/model. |
 | Trusted deployed helper | Existing authorized audio-input route; provider response arrives as a batch. |
 | No usable source | Explain the limitation and offer the matching-media picker, provider connection or helper setup. |
 
@@ -65,6 +65,14 @@ flowchart TD
     L --> K
     C --> K
 ```
+
+### Gemini public-video compatibility and diagnostics
+
+- The live model list is checked on connection (up to five catalog pages). The app separates general-purpose video candidates from specialized transcription models; a model name containing `transcribe` does not imply video-input support.
+- The no-caption route uses the documented [Interactions API](https://ai.google.dev/gemini-api/docs/video-understanding#youtube) with the public video URI and stateless requests. On compatibility errors (HTTP 400/404), it may try the legacy GenerateContent route and other catalog candidates, with at most four requests per consent. Provider usage and quota may be consumed.
+- Authentication, access, quota and explicit content refusals stop automatic retry. Errors identify attempted model, endpoint, HTTP status and available provider explanation, with credential redaction and HTML escaping.
+- All Gemini-generated word times remain estimates; a successful API response does not establish full coverage or acoustic accuracy. Public-video availability, model capability, quota and processing permission are not guaranteed. Use a matching authorized media file for acoustic recognition when link input is unavailable.
+- `python tests/test_gemini_video_routing.py` checks the exact compatibility failure path with simulated API responses, including automatic model selection, legacy fallback, and refusal handling.
 
 See [Groq speech-to-text](https://console.groq.com/docs/speech-to-text) and [Gemini video URL input](https://ai.google.dev/gemini-api/docs/video-understanding#youtube). Live Gemini availability has not been verified with credentials in this release; the regression test checks the request and response handling with mock data.
 
