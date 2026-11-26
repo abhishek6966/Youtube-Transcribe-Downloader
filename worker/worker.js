@@ -96,7 +96,7 @@ function stripCueMarks(text) {
 }
 function stripLabels(text) {
   const t = stripCueMarks(text);
-  return (t && isCueText(t)) ? "" : t;
+  return t;
 }
 
 function videoId(url) {
@@ -141,7 +141,16 @@ async function captions(url, lang) {
   for (const ev of data.events || []) {
     if (!ev.segs) continue;
     const text = stripLabels(ev.segs.map((s) => s.utf8 || "").join("").replace(/\n/g, " ").trim());
-    if (text) lines.push({ start: (ev.tStartMs || 0) / 1000, text });
+    if (text) {
+      const start = (ev.tStartMs || 0) / 1000;
+      const dur = Math.max(.02, (ev.dDurationMs || 1000) / 1000);
+      const raw = ev.segs.flatMap(s => stripCueMarks(s.utf8 || "").split(/\s+/).filter(Boolean).map(w => ({w, t:s.tOffsetMs})));
+      const line = {start, dur, text};
+      if (raw.length === text.split(/\s+/).length && raw.every((w,i) => Number.isFinite(w.t) || i === 0)) {
+        line.wt = raw.map(w => start+(w.t||0)/1000);
+      }
+      lines.push(line);
+    }
   }
   return json({ ok: true, language: track.languageCode, kind: track.kind || "standard", lines });
 }
@@ -157,23 +166,23 @@ async function transcribe(request) {
     (form.get("model") || "").toString(), (form.get("language") || "").toString());
 }
 
-async function forwardToWhisper(provider, key, audio, filename, model, lang) {
-  const out = new FormData();
-  out.append("file", audio, filename);
-  out.append("model", model || (provider === "groq" ? "whisper-large-v3-turbo" : "whisper-1"));
-  out.append("response_format", "verbose_json");
-  out.append("timestamp_granularities[]", "word");
-  if (lang) out.append("language", lang);
-  const res = await fetch(PROVIDERS[provider], {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}` },
-    body: out,
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    return json({ ok: false, error: data?.error?.message || `The provider said no (${res.status}).` }, res.status);
+async function whisperPass(provider,key,audio,filename,model,lang,title) {
+  const out=new FormData(); out.append("file",audio,filename);out.append("model",model);
+  out.append("response_format","verbose_json");out.append("timestamp_granularities[]","word");out.append("timestamp_granularities[]","segment");out.append("temperature","0");
+  if(lang)out.append("language",lang);if(title)out.append("prompt",title.slice(0,350));
+  const res=await fetch(PROVIDERS[provider],{method:"POST",headers:{Authorization:`Bearer ${key}`},body:out});
+  return {res,data:await res.json()};
+}
+async function forwardToWhisper(provider,key,audio,filename,model,lang,accuracy=true,title="") {
+  model=model||(provider==="groq"?"whisper-large-v3":"whisper-1");
+  let {res,data}=await whisperPass(provider,key,audio,filename,model,lang,title);
+  if(!res.ok)return json({ok:false,error:data?.error?.message||`The provider said no (${res.status}).`},res.status);
+  let verification_words=null;
+  if(accuracy&&Array.isArray(data.words)&&data.words.length){
+    const alternate=provider==="groq"?(model==="whisper-large-v3"?"whisper-large-v3-turbo":"whisper-large-v3"):model;
+    try{const second=await whisperPass(provider,key,audio,filename,alternate,lang,"");if(second.res.ok&&Array.isArray(second.data.words)&&second.data.words.length)verification_words=second.data.words;}catch(e){/* primary remains usable */}
   }
-  return json({ ok: true, provider, ...data });
+  return json({ok:true,provider,...data,verification_words});
 }
 
 // The YouTube player API needs an API key, but we NEVER hard-code one
@@ -296,7 +305,7 @@ async function transcribeWithGemini(key, file, model, lang, title) {
 async function transcribeLink(request) {
   const body = await request.json().catch(() => ({}));
   const provider = (body.provider || "").toString();
-  const key = (body.api_key || "").toString();
+  const key = (body.api_key || body.apiKey || "").toString();
   const lang = (body.language || "").toString();
   const title = (body.title || "").toString();
   const id = videoId(body.url || "");
@@ -347,30 +356,17 @@ async function transcribeLink(request) {
   if (!audioRes.ok && audioRes.status !== 206) {
     return json({ ok: false, error: "Could not download this video's audio. Use the listening panel or the computer pack." }, 502);
   }
+  const range = audioRes.headers.get("Content-Range");
+  if (range) { const m = range.match(/bytes (\d+)-(\d+)\/(\d+)/); if (!m || +m[1] !== 0 || +m[2]+1 < +m[3]) return json({ok:false,error:"Audio exceeds the online helper size limit; use a full audio file or offline transcription."},413); }
   const buf = await audioRes.arrayBuffer();
   const ext = (audioFmt.mimeType || "").includes("webm") ? "webm" : "m4a";
   const file = new File([buf], `audio.${ext}`, { type: `audio/${ext}` });
+  if(buf.byteLength>25*1024*1024)return json({ok:false,error:"Audio exceeds online size limit; use local transcription."},413);
   // Gemini transcribes through generateContent, not a Whisper endpoint.
   if (provider === "gemini") {
     return transcribeWithGemini(key, file, (body.model || "").toString(), lang, title);
   }
-  const out = new FormData();
-  out.append("file", file);
-  out.append("model", (body.model || (provider === "groq" ? "whisper-large-v3-turbo" : "whisper-1")).toString());
-  out.append("response_format", "verbose_json");
-  out.append("timestamp_granularities[]", "word");
-  if (title) out.append("prompt", title);
-  if (lang) out.append("language", lang);
-  const res = await fetch(PROVIDERS[provider], {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}` },
-    body: out,
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    return json({ ok: false, error: data?.error?.message || `The provider said no (${res.status}).` }, res.status);
-  }
-  return json({ ok: true, provider, ...data });
+  return forwardToWhisper(provider,key,file,file.name,(body.model||"").toString(),lang,body.accuracy!==false,title);
 }
 
 export default {

@@ -73,7 +73,7 @@ WHISPER_PROVIDERS = {
     "groq": {
         "host": "api.groq.com",
         "path": "/openai/v1/audio/transcriptions",
-        "models": ["whisper-large-v3-turbo", "whisper-large-v3"],
+        "models": ["whisper-large-v3", "whisper-large-v3-turbo"],
     },
     "openai": {
         "host": "api.openai.com",
@@ -401,10 +401,7 @@ def collapse_echo(words):
 
 
 def strip_labels(text):
-    t = strip_cue_marks(text)
-    if t and is_cue_text(t):
-        return ""
-    return t
+    return strip_cue_marks(text)
 
 
 # ---------------------------------------------------------------------------
@@ -855,41 +852,37 @@ def majority_vote(lines):
 
 
 def second_buckets(entries):
-    """Group words into one bucket per second. Real word times win
-    (entry 'wt' from a listening model or a word-timed caption file);
-    entries without word times have their words spread evenly across
-    the line's span."""
-    buckets = {}
-    order = []
-
-    def add_word(sec, word):
-        if sec not in buckets:
-            buckets[sec] = []
-            order.append(sec)
-        buckets[sec].append(word)
-
-    for e in entries:
-        words = strip_labels(e["text"]).split()
+    """Chronological words; only overlapping rolling caption suffixes may be removed."""
+    tokens = []
+    previous = None
+    def key(w):
+        return ''.join(c for c in w.casefold() if c.isalnum() or '\u0900' <= c <= '\u0d7f')
+    for e in sorted(entries, key=lambda e: e['start']):
+        words = strip_cue_marks(e['text']).split()
         if not words:
             continue
-        dur = e.get("dur") or 2
-        wt = e.get("wt")
-        for idx, w in enumerate(words):
-            if wt and len(wt) == len(words):
-                t = wt[idx]
-            else:
-                t = e["start"] + (dur * idx / len(words) if len(words) > 1 else 0)
-            add_word(int(math.floor(t)), w)
-    voted = majority_vote([(sec, " ".join(collapse_echo(buckets[sec])))
-                           for sec in sorted(order)])
-    out = []
-    prev = None
-    for sec, line in voted:
-        if line == prev:
-            continue
-        prev = line
-        out.append((sec, line))
-    return out
+        start, dur = e['start'], max(.02, e.get('dur') or 1)
+        wt = e.get('wt')
+        timed = bool(wt and len(wt) == len(words))
+        skip = 0
+        if previous and start < previous[0] - .025 and not e.get('audio') and not previous[2]:
+            old = previous[1]
+            for k in range(min(len(old),len(words)), 1, -1):
+                if [key(w) for w in old[-k:]] == [key(w) for w in words[:k]]:
+                    skip=k
+                    break
+        for i, word in enumerate(words):
+            if i < skip:
+                continue
+            tm = wt[i] if timed else start+dur*i/len(words)
+            if skip and not timed and tokens:
+                tm=max(tm,tokens[-1][0]+.02)
+            tokens.append((tm,word))
+        previous=(start+dur,words,e.get('audio',False))
+    buckets={}
+    for tm,word in sorted(tokens,key=lambda x:x[0]):
+        buckets.setdefault(int(math.floor(tm)),[]).append(word)
+    return [(sec,' '.join(buckets[sec])) for sec in sorted(buckets)]
 
 
 def timed_lines(entries, english=False):
@@ -1023,6 +1016,8 @@ def transcribe_audio(source, api_key, provider="groq", lang=""):
         body = field("model", model)
         body += field("response_format", "verbose_json")
         body += field("timestamp_granularities[]", "word")
+        body += field("timestamp_granularities[]", "segment")
+        body += field("temperature", "0")
         if lang:
             body += field("language", lang)
         body += (f"--{boundary}\r\nContent-Disposition: form-data; "
@@ -1064,7 +1059,7 @@ def entries_from_words(words):
         en = en if en > st else st + 0.3
         if (not cur or st - cur_end > 0.6 or en - cur["start"] > 3.2
                 or len(cur["wt"]) >= 12):
-            cur = {"start": st, "dur": max(0.3, en - st), "text": wtext, "wt": [st]}
+            cur = {"start": st, "dur": max(0.3, en - st), "text": wtext, "wt": [st], "audio": True}
             entries.append(cur)
         else:
             cur["text"] += " " + wtext
@@ -1098,6 +1093,7 @@ def transcribe_youtube(url, lang="auto"):
 # MCP over stdio — newline-delimited JSON-RPC 2.0.
 # ---------------------------------------------------------------------------
 TOOLS = [
+    {"name":"verify_local_audio", "description":"Audio-first universal verification for an authorized local media file. Uses installed computer engine; optional Groq and Deepgram keys send audio to those providers. Returns evidence, not a guaranteed accuracy score.", "inputSchema":{"type":"object","properties":{"path":{"type":"string"},"mode":{"type":"string","enum":["fast","advanced","maximum"]},"language":{"type":"string"},"groq":{"type":"string"},"deepgram":{"type":"string"},"local":{"type":"boolean"}},"required":["path"]}},
     {
         "name": "transcribe_youtube",
         "description": (
@@ -1176,6 +1172,16 @@ def _handle(method, params):
         name = (params or {}).get("name")
         args = (params or {}).get("arguments") or {}
         try:
+            if name == "verify_local_audio":
+                import pathlib, contextlib
+                sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+                import universal_engine, universal_server
+                source=pathlib.Path(args.get("path", "")).expanduser()
+                if not source.is_file(): return _tool_result("Choose an existing authorized local media file.", True)
+                opts=universal_server.settings(args)
+                with contextlib.redirect_stdout(sys.stderr):
+                    result=universal_engine.run(source,opts)
+                return _tool_result(json.dumps(result,ensure_ascii=False))
             if name == "transcribe_youtube":
                 result = transcribe_youtube(args.get("url", ""),
                                             args.get("lang") or "auto")

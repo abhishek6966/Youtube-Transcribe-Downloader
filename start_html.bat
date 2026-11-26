@@ -3,21 +3,31 @@ setlocal
 chcp 65001 >nul
 set PYTHONUTF8=1
 cd /d "%~dp0"
-title YouTube Transcribe Downloader
-
-:: One click: start the local page and open it in your browser.
-:: First run installs what is needed (same as run_transcript_v2.bat).
+title Universal Transcription Studio
 if not exist ".venv\Scripts\python.exe" (
-  call run_transcript_v2.bat
-  if errorlevel 1 pause & exit /b 1
+  py -3.12 --version >nul 2>&1
+  if errorlevel 1 (
+    echo Python 3.12 is required for the computer package.
+    echo Install it from https://www.python.org/downloads/ then run again.
+    pause
+    exit /b 1
+  )
+  py -3.12 -m venv .venv
+  if errorlevel 1 (
+    echo Could not create the private environment.
+    pause
+    exit /b 1
+  )
 )
-if not exist ".venv\.fix_v4" (
-  ".venv\Scripts\python.exe" -m pip install youtube-transcript-api >nul 2>&1
-  echo done> ".venv\.fix_v4"
+if not exist ".venv\.studio_v1" (
+  ".venv\Scripts\python.exe" -m pip install -r requirements.txt
+  if errorlevel 1 (
+    echo Setup failed. Check the internet connection and run again.
+    pause
+    exit /b 1
+  )
+  echo ready>".venv\.studio_v1"
 )
-set "PY=.venv\Scripts\python.exe"
 set "PATH=%~dp0.venv\Scripts;%PATH%"
-set "HF_HUB_DISABLE_SYMLINKS_WARNING=1"
-start "" http://127.0.0.1:8765/
-"%PY%" server.py
+".venv\Scripts\python.exe" server.py --open
 pause

@@ -1,3 +1,17 @@
+# Universal Transcription Studio — upgraded release
+
+**Start here: [Universal Studio guide](STUDIO-README.md).** The new `index.html` is the audio-first verification studio on GitHub Pages and the computer. `Transcript.html` is the retained classic YouTube workflow; the historical documentation below describes that classic version. For the computer extract `offline-pack.zip` and double-click `Open_Transcriber.bat` (Python 3.12 is required). Optional Maximum dependencies are separate. No claim of 100% accuracy is made.
+
+---
+
+## Enhanced audio accuracy (latest update)
+
+- Enabled by default on the transcript page; uncheck to avoid a second audio API request. Groq compares Large V3 and Turbo; OpenAI may repeat the same timed model without title bias.
+- With a connected chat model, bounded, time-anchored differences can be selected from the two audio outputs only. Unsafe, unanchored, or malformed alternatives retain the primary transcript. Actual repetitions are preserved; near-identical duplicate observations are removed.
+- Browser uploads and the Cloudflare helper support this mode. Redeploy the worker after updating the website. The API key field mismatch has been repaired. Gemini, captions-only, and local/MCP routes do not use this two-model browser reconciliation. Local CLI now prefers audio over generated captions.
+- Text-only spelling review cannot hear audio. Exact lyrics, perfect timestamps, and completeness are not guaranteed; use authorized reference alignment and review against playback. YouTube access, file-size limits, rate limits, and model availability still apply. Extra API requests can incur charges.
+- Run `python tests/test_timeline_browser.py` for browser regressions (requires Playwright and Chromium).
+
 <p align="center">
   <img src="docs/images/logo.webp" alt="YouTube Transcribe Downloader logo" width="180" />
 </p>
@@ -5,7 +19,7 @@
 <h1 align="center">YouTube Transcribe Downloader</h1>
 
 <p align="center">
-  <strong>Paste a YouTube link. Get the exact words — second by second, in the original language, and in English letters with the right pronunciation.</strong>
+  <strong>Paste a YouTube link. Get timed words — second by second, in the original language, and in English letters with the right pronunciation.</strong>
 </p>
 
 <p align="center">
@@ -31,6 +45,15 @@
 </p>
 
 ---
+
+## Timing and karaoke accuracy update
+
+- The transcript now uses a chronological token timeline; the old word-set majority vote and unconditional repeat removal are no longer applied. Rolling caption carry-over is removed only when the caption windows or inline markers provide evidence. Real repeats are retained.
+- **Play & sing along** uses the embedded YouTube player's current playback time to highlight both script columns, scroll and seek. Embedding or autoplay may be blocked by YouTube/browser; use the player's controls if autoplay is blocked.
+- **Align reference** accepts a user-supplied authorized, complete original-language reference in performance order (including repetitions). Exact matched tokens retain timing; missing or corrected tokens between anchors are estimated and labelled as such. Weak matches or unsupported gaps are rejected. No lyrics are bundled or automatically fetched from a third-party lyrics site.
+- Groq's full `whisper-large-v3` is preferred over turbo for accuracy, with fallback. Text-only AI checks are not audio verification. For songs, use the matching audio file or a configured audio-capable helper. Captions, Gemini time estimates and speech-model timestamps can still contain errors; manually verify important sections.
+- TXT exports use whole-second grouping; SRT exports preserve fractional start/end times. The browser, worker, Python helper, MCP route and offline pack have been updated. Redeploy the worker separately if you use it.
+- Verified with local browser regression tests (simulated player clock, rolling VTT, repeated words, reference alignment, and SRT); the live YouTube performance and external API credentials were not tested.
 
 ## What is this?
 
@@ -271,7 +294,7 @@ Two files, saved:  song.txt  +  song - English letters.txt
 ```
 
 - **Captions** come from the video itself via `youtube-transcript-api`.
-- **Audio** is downloaded with `yt-dlp` and transcribed with `faster-whisper` (`large-v3-turbo`, `beam_size=1`, language detected once — not five times).
+- **Audio** is downloaded with `yt-dlp` and transcribed with `faster-whisper` (`large-v3`, `beam_size=5`, language detected once — not five times).
 - **Romanization** (English-letters pronunciation) is done word by word for Hindi, Tamil, Bengali, Telugu, Japanese, Korean, Russian, Greek, Spanish and more.
 - **The server** (`server.py`) is a small local Python server on `127.0.0.1:8765`. It never sends your data anywhere except to YouTube for captions/audio, and to your chosen AI provider when you connect a key.
 
@@ -330,7 +353,7 @@ pip install -r requirements.txt
 Yes. The app, the captions route and the on-computer Whisper route cost nothing. An API key is optional — Groq has a free tier; OpenAI charges a small amount per minute of audio.
 
 **Will the lyrics be 100% perfect?**
-Honestly, no tool can promise that for sung words. Manual captions are exact. Auto captions and Whisper can mishear a sung word, and no checker can recover a word that was never heard correctly. This tool gets as close as possible: captions first, the fastest Whisper model, and an AI word check when a key is connected.
+Honestly, no tool can promise that for sung words. Manual captions can still be incomplete or out of sync. Auto captions and Whisper can mishear a sung word, and no checker can recover a word that was never heard correctly. This tool gets as close as possible: captions first, the fastest Whisper model, and an AI word check when a key is connected.
 
 **Why is it slow on my computer sometimes?**
 The first run downloads the Whisper model (~1.5 GB for `large-v3-turbo`). After that, a 3-minute song usually takes well under a minute on a normal computer. Using a Groq key is the fastest option — the audio is transcribed on Groq's servers in seconds.

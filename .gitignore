@@ -21,3 +21,5 @@ config.local.*
 Thumbs.db
 .vscode/
 .idea/
+
+.studio-cache/

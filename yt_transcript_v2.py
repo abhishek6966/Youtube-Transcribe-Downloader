@@ -26,7 +26,7 @@ VIDEO_LINKS = [
 ]
 
 LANGUAGE = None          # None = auto-detect (the .bat can override). e.g. "es", "hi", "ja"
-MODEL = "large-v3-turbo" # was "large-v3" — turbo is ~5-6x faster on CPU, near-same accuracy.
+MODEL = "large-v3" # was "large-v3" — turbo is ~5-6x faster on CPU, near-same accuracy.
                          # Even faster draft: "medium" (much faster, a bit less accurate).
                          # Do NOT go back to "large-v3" unless turbo mishears a language badly.
 DEVICE = "cpu"
@@ -266,10 +266,7 @@ def strip_cue_marks(text):
 
 
 def strip_labels(text):
-    t = strip_cue_marks(text)
-    if t and is_cue_text(t):
-        return ""
-    return t
+    return strip_cue_marks(text)
 
 
 def collapse_echo(words):
@@ -395,32 +392,46 @@ def majority_vote(lines):
     return out
 
 
-def group_by_second(items):
-    """Sec by sec: one line per second, words spoken in that second joined.
-    items are (start, end, text). Sound-description marks are cleaned off
-    and echo repetition inside one second is collapsed. Returns
-    [(second_start, joined_text)]."""
-    buckets = {}
-    order = []
-    for a, b, t in items:
-        t = strip_cue_marks(t)
-        if not t:
-            continue
-        sec = int(a)
-        if sec not in buckets:
-            buckets[sec] = []
-            order.append(sec)
-        buckets[sec].append(t)
+def normalize_items(items, captions=False):
+    """Preserve order, timing, and genuine repetitions. Only trim overlapping rolling captions."""
+    import math
     out = []
-    for sec in order:
-        words = collapse_echo(" ".join(buckets[sec]).split())
+    previous = None
+    def key(w):
+        return ''.join(c for c in unicodedata.normalize('NFC', w).casefold() if unicodedata.category(c)[0] in 'LMN')
+    for a, b, t in sorted(items, key=lambda x: x[0]):
+        if not math.isfinite(a) or a < 0:
+            continue
+        b = max(a + .02, b) if math.isfinite(b) else a + .25
+        words = strip_cue_marks(t).split()
         if not words:
             continue
-        text = " ".join(words)
-        if is_cue_text(text):
-            continue
-        out.append((sec, text))
-    return majority_vote(out)
+        skip = 0
+        if captions and previous and a < previous[0] - .025:
+            old = previous[1]
+            for k in range(min(len(old), len(words)), 1, -1):
+                if [key(w) for w in old[-k:]] == [key(w) for w in words[:k]]:
+                    skip = k
+                    break
+        if captions:
+            for i, w in enumerate(words[skip:], skip):
+                st = a + (b-a)*i/len(words)
+                en = a + (b-a)*(i+1)/len(words)
+                if skip and out:
+                    st = max(st, out[-1][1]); en = max(st+.02, en)
+                out.append((st, en, w))
+        else:
+            out.append((a, b, ' '.join(words)))
+        previous = (b, words)
+    return sorted(out, key=lambda x: x[0])
+
+
+def group_by_second(items):
+    """Group by source start without deduplicating words or rewriting order."""
+    buckets = {}
+    for a, b, t in normalize_items(items):
+        buckets.setdefault(int(a), []).append(t)
+    return [(sec, ' '.join(buckets[sec])) for sec in sorted(buckets)]
 
 
 def detect_language(model, path):
@@ -491,9 +502,9 @@ def try_captions(url, language):
              for s in fetched if s.text.strip()]
     if not items:
         return None
-    kind = "manual (exact)" if not chosen.is_generated else "auto-generated (may mishear lyrics)"
+    kind = "manual (not audio verified)" if not chosen.is_generated else "auto-generated (may mishear lyrics)"
     print(f"  Captions found: {chosen.language} — {kind}, {len(items)} lines. No audio download needed.")
-    return chosen.language_code, kind, items
+    return chosen.language_code, kind, normalize_items(items, captions=True)
 
 
 def transcribe(url, model, language, names_hint=None):
@@ -528,9 +539,9 @@ def transcribe(url, model, language, names_hint=None):
             language=language,
             task="transcribe",
             word_timestamps=True,
-            beam_size=5,
+            beam_size=BEAM_SIZE,
             temperature=0.0,
-            initial_prompt=prompt,
+            initial_prompt=(names_hint or None),
             condition_on_previous_text=False,
             hallucination_silence_threshold=2.0,   # skip text invented over silence
             compression_ratio_threshold=2.4,
@@ -568,7 +579,7 @@ def main():
         t0 = time.time()
         # --- Step 1: captions first (seconds, exact if manual) ---
         cap = try_captions(url, forced)
-        if cap:
+        if cap and "manual" in cap[1]:
             lang, kind, items = cap
             note = f"YouTube captions — {kind}"
             title = "video"
@@ -581,13 +592,16 @@ def main():
             _save(title, lang, note, items)
             print(f"  Done in {time.time() - t0:.0f}s (captions, no transcription).")
             continue
-        # --- Step 2: no captions — transcribe audio with turbo ---
+        # --- Step 2: no manual captions — prefer audio over automatic captions ---
         print(f"Loading model '{MODEL}' (first run downloads ~800 MB, once only)...")
         model = WhisperModel(MODEL, device=DEVICE, compute_type="int8", cpu_threads=CPU_THREADS)
         try:
             title, lang, prob, items = transcribe(url, model, forced, names_hint)
         except Exception as e:
             print(f"  Failed: {e}")
+            if cap:
+                lang, kind, items = cap
+                _save("video", lang, f"Unverified caption fallback — {kind}", items)
             continue
         note = "forced by you" if forced else f"auto-detected, confidence {prob:.0%}"
         _save(title, lang, note, items)

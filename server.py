@@ -24,6 +24,7 @@ PORT = 8765
 
 # Reuse v2's captions + romanization code (no duplication).
 import yt_transcript_v2 as v2
+import universal_server as studio
 
 # API-key providers (in memory only — the key is NEVER written to disk,
 # never logged, and never sent to Muse. It lives only in this server
@@ -49,7 +50,7 @@ PROVIDERS = {
         "transcribe_url": ("api.groq.com", "/openai/v1/audio/transcriptions"),
         # Fallback chain, in order — if the first is decommissioned or
         # fails, the next working one is used. Never a hard-coded single model.
-        "transcribe_models": ["whisper-large-v3-turbo", "whisper-large-v3"],
+        "transcribe_models": ["whisper-large-v3", "whisper-large-v3-turbo"],
     },
     "openai": {
         "models_url": ("api.openai.com", "/v1/models"),
@@ -130,6 +131,7 @@ def payload(lang, source, items):
         "language": lang,
         "source": source,
         "count": len(grouped),
+        "timed_items": [{"start": a, "end": b, "text": t} for a, b, t in items],
         "segments": [{"start": sec, "end": sec + 1, "text": text} for sec, text in grouped],
         "segments_latin": [{"start": sec, "end": sec + 1, "text": text} for sec, text in grouped_latin],
         "plain": plain,
@@ -145,7 +147,7 @@ def captions_result(url, lang):
         return None
     lang_code, kind, items = cap
     p = payload(lang_code, f"YouTube captions — {kind}", items)
-    p["note"] = "Exact" if "manual" in kind else "Auto captions — may mishear sung lyrics"
+    p["note"] = "Uploader captions — not audio verified" if "manual" in kind else "Auto captions — may mishear sung lyrics"
     return p
 
 
@@ -275,6 +277,8 @@ def transcribe_with_api(job_id, url, lang):
                 body = field("model", model)
                 body += field("response_format", "verbose_json")
                 body += field("timestamp_granularities[]", "word")
+                body += field("timestamp_granularities[]", "segment")
+                body += field("temperature", "0")
                 # Accuracy: give Whisper the video title as a prompt, so names
                 # and fast lines are heard correctly instead of guessed.
                 body += field("prompt", title)
@@ -320,15 +324,27 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
         self.wfile.write(data)
 
+    def _trusted(self):
+        host=self.headers.get('Host','')
+        origin=self.headers.get('Origin')
+        if host not in ('127.0.0.1:8765','localhost:8765') or (origin and origin not in ('http://127.0.0.1:8765','http://localhost:8765')) or self.headers.get('Sec-Fetch-Site')=='cross-site':
+            self._send({'error':'Local service accepts only same-origin loopback requests.'},403)
+            return False
+        return True
+
     def do_GET(self):
+        if not self._trusted():return
         parsed = urllib.parse.urlparse(self.path)
-        if parsed.path in ("/", "/index.html", "/Transcript.html"):
-            name = "Transcript.html" if os.path.exists(os.path.join(HERE, "Transcript.html")) else "index.html"
-            with open(os.path.join(HERE, name), "rb") as f:
-                self._send(f.read(), ctype="text/html; charset=utf-8")
+        if studio.dispatch(self,parsed.path,'GET'):return
+        assets={'/':'index.html','/index.html':'index.html','/Transcript.html':'Transcript.html','/studio.js':'studio.js','/studio.css':'studio.css','/offline-pack.zip':'offline-pack.zip'}
+        if parsed.path in assets:
+            name=assets[parsed.path];ctype={'html':'text/html; charset=utf-8','js':'application/javascript; charset=utf-8','css':'text/css; charset=utf-8','zip':'application/zip'}[name.rsplit('.',1)[-1]]
+            with open(os.path.join(HERE,name),'rb') as f:self._send(f.read(),ctype=ctype)
             return
         if parsed.path == "/api/transcript":
             q = urllib.parse.parse_qs(parsed.query)
@@ -363,7 +379,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_error(404)
 
     def do_POST(self):
+        if not self._trusted():return
         parsed = urllib.parse.urlparse(self.path)
+        if studio.dispatch(self,parsed.path,'POST'):return
         if parsed.path == "/api/connect":
             n = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(n) or b"{}")
@@ -410,4 +428,8 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     print(f"YouTube Transcribe Downloader — open http://127.0.0.1:{PORT} in your browser")
     print("Close this window to stop it.")
-    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    httpd=ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    if "--open" in __import__("sys").argv:
+        import webbrowser
+        threading.Timer(.3,lambda:webbrowser.open(f"http://127.0.0.1:{PORT}/")).start()
+    httpd.serve_forever()
